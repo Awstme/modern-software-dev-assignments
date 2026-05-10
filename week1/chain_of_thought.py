@@ -8,7 +8,14 @@ load_dotenv()
 NUM_RUNS_TIMES = 5
 
 # TODO: Fill this in!
-YOUR_SYSTEM_PROMPT = ""
+YOUR_SYSTEM_PROMPT = """You are a math problem solver. Solve modular arithmetic problems step by step.
+
+To compute a^b mod m:
+1. Find the cycle length of a^n mod m by computing consecutive powers until the result repeats to 1.
+2. Compute b mod cycle_length to reduce the exponent.
+3. Compute a^(reduced_exponent) mod m to get the answer.
+
+Always show your reasoning steps clearly, then end with the final answer on its own line as "Answer: <number>"."""
 
 
 USER_PROMPT = """
