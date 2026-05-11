@@ -15,14 +15,10 @@ Keep the implementation minimal.
 """
 
 # TODO: Fill this in!
-YOUR_REFLEXION_PROMPT = """You are a coding assistant that improves code based on test failures.
+YOUR_REFLEXION_PROMPT = """You are a debugging expert. You will see a Python function with test failures.
+Analyze the failures, identify the bug in the logic, and output the corrected function.
 
-Given your previous code and the test failures, analyze what went wrong and produce a corrected version.
-
-Rules:
-- Output ONLY a single fenced Python code block with the improved function.
-- No prose or comments outside the code block.
-- Fix ALL the listed failures in your revised implementation."""
+CRITICAL: Output ONLY a ```python code block containing the fixed function. No explanation."""
 
 
 # Ground-truth test suite used to evaluate generated code
@@ -107,7 +103,12 @@ def your_build_reflexion_context(prev_code: str, failures: List[str]) -> str:
     return (
         f"Previous implementation:\n```python\n{prev_code}\n```\n\n"
         f"Test failures:\n{failure_text}\n\n"
-        "Please fix the code to pass all test cases."
+        "Password rules (ALL must be satisfied):\n"
+        "1. At least 8 characters long\n"
+        "2. Contains at least one lowercase letter (a-z)\n"
+        "3. Contains at least one uppercase letter (A-Z)\n"
+        "4. Contains at least one digit (0-9)\n"
+        "5. Contains at least one special character from: !@#$%^&*()-_"
     )
 
 
