@@ -17,6 +17,7 @@
           <input id="note-content" placeholder="Content" required />
           <button type="submit">Add</button>
         </form>
+        <p id="notes-error" class="error" role="alert"></p>
         <ul id="notes"></ul>
       </section>
 
@@ -26,6 +27,13 @@
           <input id="action-desc" placeholder="Description" required />
           <button type="submit">Add</button>
         </form>
+        <div class="toolbar" aria-label="Action item filters">
+          <button type="button" class="filter active" data-filter="all">All</button>
+          <button type="button" class="filter" data-filter="open">Open</button>
+          <button type="button" class="filter" data-filter="done">Done</button>
+          <button type="button" id="bulk-complete">Complete selected</button>
+        </div>
+        <p id="actions-error" class="error" role="alert"></p>
         <ul id="actions"></ul>
       </section>
     </main>
