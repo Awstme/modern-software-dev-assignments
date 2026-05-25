@@ -4,10 +4,11 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .db import apply_seed_if_needed, engine
+from .db import apply_seed_if_needed, engine, ensure_runtime_schema
 from .models import Base
 from .routers import action_items as action_items_router
 from .routers import notes as notes_router
+from .routers import projects as projects_router
 
 app = FastAPI(title="Modern Software Dev Starter (Week 6)", version="0.1.0")
 
@@ -22,6 +23,7 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 @app.on_event("startup")
 def startup_event() -> None:
     Base.metadata.create_all(bind=engine)
+    ensure_runtime_schema()
     apply_seed_if_needed()
 
 
@@ -33,5 +35,4 @@ async def root() -> FileResponse:
 # Routers
 app.include_router(notes_router.router)
 app.include_router(action_items_router.router)
-
-
+app.include_router(projects_router.router)
