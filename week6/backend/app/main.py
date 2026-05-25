@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -18,13 +19,17 @@ Path("data").mkdir(parents=True, exist_ok=True)
 # Mount static frontend
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
+allowed_origins = os.getenv(
+    "CORS_ALLOW_ORIGINS",
+    "http://127.0.0.1:8000,http://localhost:8000",
+).split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # Compatibility with FastAPI lifespan events; keep on_event for simplicity here
@@ -42,5 +47,3 @@ async def root() -> FileResponse:
 # Routers
 app.include_router(notes_router.router)
 app.include_router(action_items_router.router)
-
-
