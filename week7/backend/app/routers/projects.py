@@ -8,13 +8,22 @@ from ..schemas import ActionItemRead, ProjectCreate, ProjectRead
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
+PROJECT_SORT_FIELDS = {"id", "name", "created_at", "updated_at"}
+PROJECT_ACTION_ITEM_SORT_FIELDS = {
+    "id",
+    "description",
+    "completed",
+    "created_at",
+    "updated_at",
+}
+
 
 @router.get("/", response_model=list[ProjectRead])
 def list_projects(
     db: Session = Depends(get_db),
     q: str | None = None,
-    skip: int = 0,
-    limit: int = Query(50, le=200),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
     sort: str = Query("name"),
 ) -> list[ProjectRead]:
     stmt = select(Project)
@@ -23,10 +32,12 @@ def list_projects(
 
     sort_field = sort.lstrip("-")
     order_fn = desc if sort.startswith("-") else asc
-    if hasattr(Project, sort_field):
-        stmt = stmt.order_by(order_fn(getattr(Project, sort_field)))
-    else:
-        stmt = stmt.order_by(asc(Project.name))
+    if sort_field not in PROJECT_SORT_FIELDS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid sort field. Allowed fields: {', '.join(sorted(PROJECT_SORT_FIELDS))}",
+        )
+    stmt = stmt.order_by(order_fn(getattr(Project, sort_field)))
 
     rows = db.execute(stmt.offset(skip).limit(limit)).scalars().all()
     return [ProjectRead.model_validate(row) for row in rows]
@@ -58,8 +69,9 @@ def list_project_action_items(
     project_id: int,
     db: Session = Depends(get_db),
     completed: bool | None = None,
-    skip: int = 0,
-    limit: int = Query(50, le=200),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    sort: str = Query("-created_at"),
 ) -> list[ActionItemRead]:
     if db.get(Project, project_id) is None:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -68,8 +80,21 @@ def list_project_action_items(
     if completed is not None:
         stmt = stmt.where(ActionItem.completed.is_(completed))
 
+    sort_field = sort.lstrip("-")
+    order_fn = desc if sort.startswith("-") else asc
+    if sort_field not in PROJECT_ACTION_ITEM_SORT_FIELDS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Invalid sort field. Allowed fields: "
+                f"{', '.join(sorted(PROJECT_ACTION_ITEM_SORT_FIELDS))}"
+            ),
+        )
+
     rows = (
-        db.execute(stmt.order_by(desc(ActionItem.created_at)).offset(skip).limit(limit))
+        db.execute(
+            stmt.order_by(order_fn(getattr(ActionItem, sort_field))).offset(skip).limit(limit)
+        )
         .scalars()
         .all()
     )
