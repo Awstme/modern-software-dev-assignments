@@ -56,3 +56,9 @@ def apply_seed_if_needed() -> None:
                     conn.execute(text(statement))
 
 
+def ensure_runtime_schema() -> None:
+    with engine.begin() as conn:
+        table_info = conn.execute(text("PRAGMA table_info(action_items)")).mappings().all()
+        column_names = {column["name"] for column in table_info}
+        if table_info and "project_id" not in column_names:
+            conn.execute(text("ALTER TABLE action_items ADD COLUMN project_id INTEGER"))
