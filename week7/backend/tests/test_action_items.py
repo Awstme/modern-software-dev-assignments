@@ -22,3 +22,39 @@ def test_create_complete_list_and_patch_action_item(client):
     assert patched["description"] == "Updated"
 
 
+def test_action_item_validation_errors(client):
+    r = client.post("/action-items/", json={"description": "   "})
+    assert r.status_code == 422
+
+    r = client.patch("/action-items/999", json={"description": ""})
+    assert r.status_code == 422
+
+    r = client.get("/action-items/", params={"skip": -1})
+    assert r.status_code == 422
+
+    r = client.get("/action-items/", params={"limit": 0})
+    assert r.status_code == 422
+
+    r = client.get("/action-items/", params={"sort": "not_a_column"})
+    assert r.status_code == 422
+    assert "Invalid sort field" in r.json()["detail"]
+
+
+def test_get_and_delete_action_item(client):
+    r = client.post("/action-items/", json={"description": "Follow up"})
+    assert r.status_code == 201
+    item_id = r.json()["id"]
+
+    r = client.get(f"/action-items/{item_id}")
+    assert r.status_code == 200
+    assert r.json()["description"] == "Follow up"
+
+    r = client.delete(f"/action-items/{item_id}")
+    assert r.status_code == 204
+    assert r.content == b""
+
+    r = client.get(f"/action-items/{item_id}")
+    assert r.status_code == 404
+
+    r = client.delete(f"/action-items/{item_id}")
+    assert r.status_code == 404
