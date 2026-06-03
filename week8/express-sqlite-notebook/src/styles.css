@@ -1220,6 +1220,15 @@ time {
   padding-top: 22px;
 }
 
+.empty-state {
+  display: grid;
+  place-items: center;
+  padding: 48px 20px;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
 .note-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(260px, 1fr));

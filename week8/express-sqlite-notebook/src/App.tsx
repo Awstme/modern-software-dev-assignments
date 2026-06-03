@@ -783,7 +783,7 @@ function Header() {
 }
 
 function TodoView() {
-  const { todos, tags, refresh, pendingEditId, setPendingEditId } = useNotebook();
+  const { todos, tags, refresh, pendingEditId, setPendingEditId, search, activeTagId } = useNotebook();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editTagId, setEditTagId] = useState("");
@@ -834,8 +834,8 @@ function TodoView() {
 
   return (
     <section className="todo-panel">
-      <div className="todo-list">
-        {todos.length > 0 && (
+      {todos.length > 0 ? (
+        <div className="todo-list">
           <div className="todo-header">
             <span />
             <span>TODO</span>
@@ -843,8 +843,7 @@ function TodoView() {
             <span>截止日期</span>
             <span>操作</span>
           </div>
-        )}
-        {todos.map((todo) =>
+          {todos.map((todo) =>
           editingId === todo.id ? (
             <article key={todo.id} className="todo-row editing">
               <input
@@ -913,32 +912,43 @@ function TodoView() {
             </article>
           )
         )}
-      </div>
+        </div>
+      ) : (
+        <div className="empty-state">
+          {search ? "没有找到匹配的待办" : activeTagId ? "该标签下没有待办" : "暂无待办，点击 + 创建"}
+        </div>
+      )}
     </section>
   );
 }
 
 function NotesView() {
-  const { notes, setSelectedNote, currentUser } = useNotebook();
+  const { notes, setSelectedNote, currentUser, search, activeTagId } = useNotebook();
 
   return (
     <section className="notes-panel">
-      <div className="note-grid">
-        {notes.map((note) => (
-          <button key={note.id} className="note-card" onClick={() => { if (currentUser) setSelectedNote(note); }}>
-            <span className="note-title">{note.title}</span>
-            <span className="note-tags">
-              {note.tags.slice(0, 2).map((tag) => (
-                <span key={tag.id} className="pill" style={{ backgroundColor: tag.color }}>
-                  {tag.name}
-                </span>
-              ))}
-            </span>
-            <span className="note-excerpt">{currentUser ? note.content.replace(/[#*_`-]/g, "").slice(0, 80) : "登录后查看内容"}</span>
-            <time>{note.updatedAt.slice(0, 10)}</time>
-          </button>
-        ))}
-      </div>
+      {notes.length > 0 ? (
+        <div className="note-grid">
+          {notes.map((note) => (
+            <button key={note.id} className="note-card" onClick={() => { if (currentUser) setSelectedNote(note); }}>
+              <span className="note-title">{note.title}</span>
+              <span className="note-tags">
+                {note.tags.slice(0, 2).map((tag) => (
+                  <span key={tag.id} className="pill" style={{ backgroundColor: tag.color }}>
+                    {tag.name}
+                  </span>
+                ))}
+              </span>
+              <span className="note-excerpt">{currentUser ? note.content.replace(/[#*_`-]/g, "").slice(0, 80) : "登录后查看内容"}</span>
+              <time>{note.updatedAt.slice(0, 10)}</time>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state">
+          {search ? "没有找到匹配的笔记" : activeTagId ? "该标签下没有笔记" : "暂无笔记，点击 + 创建"}
+        </div>
+      )}
     </section>
   );
 }
