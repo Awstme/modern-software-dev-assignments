@@ -267,6 +267,9 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   async function loginAsGuest() {
     await finishAuth("/api/auth/guest");
@@ -334,6 +337,32 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function changePassword() {
+    setError("");
+    if (!oldPassword || !newPassword) {
+      setError("请填写原密码和新密码");
+      return;
+    }
+    if (newPassword === oldPassword) {
+      setError("新密码不能与原密码相同");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.request<User>("/api/users/me", {
+        method: "PATCH",
+        body: JSON.stringify({ oldPassword, newPassword }),
+      });
+      setChangingPassword(false);
+      setOldPassword("");
+      setNewPassword("");
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : "修改失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Modal
       title={currentUser ? "用户中心" : authMode === "login" ? "登录账户" : "注册账户"}
@@ -379,6 +408,41 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
             )}
             <p>{currentUser.username ? `@${currentUser.username}` : ""}</p>
           </div>
+          {currentUser.username && (
+            changingPassword ? (
+              <div className="profile-password-edit">
+                <input
+                  type="password"
+                  placeholder="原密码"
+                  value={oldPassword}
+                  onChange={(event) => setOldPassword(event.target.value)}
+                  autoComplete="current-password"
+                />
+                <input
+                  type="password"
+                  placeholder="新密码"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  autoComplete="new-password"
+                />
+                <div className="profile-password-actions">
+                  <button className="text-button" onClick={changePassword} disabled={busy}>
+                    <Check size={14} />
+                    确认修改
+                  </button>
+                  <button className="text-button" onClick={() => { setChangingPassword(false); setError(""); setOldPassword(""); setNewPassword(""); }}>
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button className="text-button" onClick={() => setChangingPassword(true)}>
+                <Settings size={16} />
+                修改密码
+              </button>
+            )
+          )}
+          {error && <p className="auth-error">{error}</p>}
           <button className="text-button danger" onClick={logout}>
             <LogOut size={16} />
             退出登录

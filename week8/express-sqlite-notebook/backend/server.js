@@ -317,12 +317,31 @@ app.post("/api/auth/login", (req, res) => {
 
 app.patch("/api/users/me", requireUser, (req, res) => {
   const name = optionalString(req.body.name);
-  if (!name) return res.status(400).json({ error: "昵称不能为空" });
-  db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, req.userId);
-  const user = db
+  const oldPassword = optionalString(req.body.oldPassword);
+  const newPassword = optionalString(req.body.newPassword);
+
+  if (name) {
+    db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, req.userId);
+  }
+
+  if (oldPassword && newPassword) {
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.userId);
+    if (!user.password_hash) return res.status(400).json({ error: "访客账户无法修改密码" });
+    if (!verifyPassword(oldPassword, user.password_salt, user.password_hash)) {
+      return res.status(400).json({ error: "原密码不正确" });
+    }
+    const { salt, hash } = hashPassword(newPassword);
+    db.prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?").run(hash, salt, req.userId);
+  }
+
+  if (!name && !oldPassword && !newPassword) {
+    return res.status(400).json({ error: "缺少修改参数" });
+  }
+
+  const updated = db
     .prepare("SELECT id, username, name, role, avatar_color AS avatarColor FROM users WHERE id = ?")
     .get(req.userId);
-  res.json(publicUser(user));
+  res.json(publicUser(updated));
 });
 
 app.get("/api/tags", requireUser, (req, res) => {
