@@ -936,6 +936,8 @@ function Editor() {
   const [toast, setToast] = useState("");
   const [confirmState, setConfirmState] = useState<"close" | null>(null);
   const [infoState, setInfoState] = useState<string | null>(null);
+  const [showNewTag, setShowNewTag] = useState(false);
+  const [quickTagName, setQuickTagName] = useState("");
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1002,6 +1004,23 @@ function Editor() {
   function handleCancelClose() {
     setConfirmState(null);
     setSelectedNote(null);
+  }
+
+  async function quickCreateTag() {
+    const trimmed = quickTagName.trim();
+    if (!trimmed) return;
+    try {
+      const tag = await api.request<Tag>("/api/tags", {
+        method: "POST",
+        body: JSON.stringify({ name: trimmed, color: "#dbeafe" }),
+      });
+      await refresh();
+      setTagIds((current) => [...current, tag.id]);
+      setQuickTagName("");
+      setShowNewTag(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "创建标签失败");
+    }
   }
 
   async function summarize() {
@@ -1110,6 +1129,31 @@ function Editor() {
             <span style={{ backgroundColor: tag.color }}>{tag.name}</span>
           </label>
         ))}
+        {showNewTag ? (
+          <div className="editor-quick-tag">
+            <input
+              value={quickTagName}
+              onChange={(event) => setQuickTagName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") quickCreateTag();
+                if (event.key === "Escape") { setShowNewTag(false); setQuickTagName(""); }
+              }}
+              placeholder="标签名"
+              autoFocus
+              maxLength={12}
+            />
+            <button className="icon-button todo-confirm-button" onClick={quickCreateTag}>
+              <Check size={14} />
+            </button>
+            <button className="icon-button" onClick={() => { setShowNewTag(false); setQuickTagName(""); }}>
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <button className="editor-add-tag" onClick={() => setShowNewTag(true)}>
+            <Plus size={14} />
+          </button>
+        )}
       </div>
       <section className="summary-box">
         <button onClick={summarize}>
@@ -1193,7 +1237,7 @@ export function App() {
       body: JSON.stringify({
         title: tpl.title,
         content: tpl.content,
-        tagIds: activeTagId ? [activeTagId] : tags[0] ? [tags[0].id] : [],
+        tagIds: [],
       }),
     });
     await refresh();

@@ -1300,8 +1300,49 @@ time {
 .editor-tags {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin: 18px 0;
+}
+
+.editor-add-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px dashed rgba(var(--accent-rgb), 0.4);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.editor-add-tag:hover {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.editor-quick-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editor-quick-tag input {
+  height: 28px;
+  width: 80px;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.editor-quick-tag .icon-button {
+  min-height: unset;
+  padding: 2px;
 }
 
 .editor-error {
