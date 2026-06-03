@@ -315,6 +315,16 @@ app.post("/api/auth/login", (req, res) => {
   res.json(publicUser(user));
 });
 
+app.patch("/api/users/me", requireUser, (req, res) => {
+  const name = optionalString(req.body.name);
+  if (!name) return res.status(400).json({ error: "昵称不能为空" });
+  db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, req.userId);
+  const user = db
+    .prepare("SELECT id, username, name, role, avatar_color AS avatarColor FROM users WHERE id = ?")
+    .get(req.userId);
+  res.json(publicUser(user));
+});
+
 app.get("/api/tags", requireUser, (req, res) => {
   const rows = db
     .prepare("SELECT id, name, color FROM tags WHERE user_id = ? ORDER BY created_at, name")

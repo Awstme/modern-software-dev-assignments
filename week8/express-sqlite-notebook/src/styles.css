@@ -425,9 +425,37 @@ textarea:focus-visible {
 }
 
 .profile-card strong {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: #162034;
   font-size: 17px;
+}
+
+.profile-card strong .icon-button {
+  min-height: unset;
+  padding: 2px;
+  color: var(--muted);
+}
+
+.profile-card strong .icon-button:hover {
+  color: var(--blue);
+}
+
+.profile-name-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.profile-name-edit input {
+  height: 32px;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 15px;
+  width: 120px;
+  box-sizing: border-box;
 }
 
 .profile-card p {

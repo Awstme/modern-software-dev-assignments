@@ -219,6 +219,8 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [newName, setNewName] = useState("");
 
   async function loginAsGuest() {
     await finishAuth("/api/auth/guest");
@@ -265,6 +267,27 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
     setCurrentUser(null);
   }
 
+  async function saveName() {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === currentUser?.name) {
+      setEditingName(false);
+      return;
+    }
+    setBusy(true);
+    try {
+      const user = await api.request<User>("/api/users/me", {
+        method: "PATCH",
+        body: JSON.stringify({ name: trimmed }),
+      });
+      setCurrentUser(user);
+      setEditingName(false);
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : "修改失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Modal
       title={currentUser ? "用户中心" : authMode === "login" ? "登录账户" : "注册账户"}
@@ -274,21 +297,46 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
       {currentUser ? (
         <div className="profile-card">
           <span className="profile-avatar" style={{ backgroundColor: currentUser.avatarColor }}>
-            {currentUser.name.slice(0, 1)}
+            {(editingName ? newName : currentUser.name).slice(0, 1)}
           </span>
           <div>
-            <strong>{currentUser.name}</strong>
-            <p>{currentUser.username ? `@${currentUser.username} · ${currentUser.role}` : currentUser.role}</p>
+            {editingName ? (
+              <div className="profile-name-edit">
+                <input
+                  value={newName}
+                  onChange={(event) => setNewName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") saveName();
+                    if (event.key === "Escape") setEditingName(false);
+                  }}
+                  autoFocus
+                  maxLength={16}
+                />
+                <button className="icon-button todo-confirm-button" onClick={saveName} disabled={busy}>
+                  <Check size={16} />
+                </button>
+                <button className="icon-button" onClick={() => setEditingName(false)}>
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <strong>
+                {currentUser.name}
+                <button
+                  className="icon-button"
+                  onClick={() => { setEditingName(true); setNewName(currentUser.name); }}
+                  aria-label="编辑昵称"
+                >
+                  <Pencil size={14} />
+                </button>
+              </strong>
+            )}
+            <p>{currentUser.username ? `@${currentUser.username}` : ""}</p>
           </div>
           <button className="text-button danger" onClick={logout}>
             <LogOut size={16} />
             退出登录
           </button>
-          {currentUser.id !== "guest-demo" && (
-            <button className="guest-link-button" onClick={loginAsGuest} disabled={busy}>
-              切换到访客演示数据
-            </button>
-          )}
         </div>
       ) : (
         <div className="auth-panel">
