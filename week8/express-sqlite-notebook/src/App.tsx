@@ -1,10 +1,14 @@
 import {
   ArrowLeft,
   Check,
+  ClipboardCopy,
+  Download,
+  FileText,
   LogIn,
   LogOut,
   MoreVertical,
   Palette,
+  Pencil,
   Plus,
   Save,
   Search,
@@ -15,11 +19,11 @@ import {
   X,
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { create } from "zustand";
 
 type Mode = "todo" | "notes";
-type ModalMode = "profile" | "settings" | null;
+type ModalMode = "profile" | "settings" | "newtag" | null;
 type ThemeId = "blue" | "green" | "gold" | "rose";
 type AuthMode = "login" | "register";
 
@@ -98,9 +102,13 @@ function readStoredTheme(): ThemeId {
 
 const api = {
   async request<T>(url: string, options?: RequestInit): Promise<T> {
+    const userId = useNotebook.getState().currentUser?.id;
+    const headers: Record<string, string> = {};
+    if (userId) headers["X-User-Id"] = userId;
+    if (options?.body) headers["Content-Type"] = "application/json";
     const response = await fetch(url, {
-      headers: { "Content-Type": "application/json" },
       ...options,
+      headers: { ...headers, ...(options?.headers as Record<string, string> || {}) },
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({ error: "Request failed" }));
@@ -143,12 +151,16 @@ const useNotebook = create<Store>((set, get) => ({
     if (search) params.set("search", search);
     if (activeTagId) params.set("tagId", activeTagId);
 
-    const [tags, todos, notes] = await Promise.all([
-      api.request<Tag[]>("/api/tags"),
-      api.request<Todo[]>(`/api/todos?${params}`),
-      api.request<Note[]>(`/api/notes?${params}`),
-    ]);
-    set({ tags, todos, notes });
+    try {
+      const [tags, todos, notes] = await Promise.all([
+        api.request<Tag[]>("/api/tags"),
+        api.request<Todo[]>(`/api/todos?${params}`),
+        api.request<Note[]>(`/api/notes?${params}`),
+      ]);
+      set({ tags, todos, notes });
+    } catch {
+      set({ tags: [], todos: [], notes: [] });
+    }
   },
 }));
 
@@ -257,6 +269,11 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
             <LogOut size={16} />
             退出登录
           </button>
+          {currentUser.id !== "guest-demo" && (
+            <button className="guest-link-button" onClick={loginAsGuest} disabled={busy}>
+              切换到访客演示数据
+            </button>
+          )}
         </div>
       ) : (
         <div className="auth-panel">
@@ -345,8 +362,84 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+const tagColorChoices = [
+  "#dbeafe", "#dcfce7", "#fef3c7", "#f3e8ff",
+  "#ffe4e6", "#e0f2fe", "#fce7f3", "#d1fae5",
+];
+
+function NewTagModal({ onClose }: { onClose: () => void }) {
+  const { refresh } = useNotebook();
+  const [name, setName] = useState("");
+  const [color, setColor] = useState(tagColorChoices[0]);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!name.trim()) {
+      setError("请输入标签名称");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await api.request<Tag>("/api/tags", {
+        method: "POST",
+        body: JSON.stringify({ name: name.trim(), color }),
+      });
+      await refresh();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "创建失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="新建标签" subtitle="为笔记和待办创建分类标签。" onClose={onClose}>
+      <form className="auth-form" onSubmit={submit}>
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="标签名称"
+          autoFocus
+        />
+        <div className="tag-color-grid">
+          {tagColorChoices.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`tag-color-swatch ${color === c ? "active" : ""}`}
+              onClick={() => setColor(c)}
+              style={{ backgroundColor: c }}
+              aria-label={`color ${c}`}
+            />
+          ))}
+        </div>
+        {error && <p className="auth-error">{error}</p>}
+        <button className="guest-login-button" type="submit" disabled={busy}>
+          <Plus size={18} />
+          创建标签
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
 function Sidebar({ onOpenModal }: { onOpenModal: (modal: Exclude<ModalMode, null>) => void }) {
-  const { tags, activeTagId, setActiveTagId, currentUser } = useNotebook();
+  const { tags, activeTagId, setActiveTagId, currentUser, refresh } = useNotebook();
+
+  async function deleteTag(tagId: string, tagName: string) {
+    if (!confirm(`确定删除标签「${tagName}」吗？关联的待办将取消标签，笔记将移除该标签。`)) return;
+    try {
+      await api.request(`/api/tags/${tagId}`, { method: "DELETE" });
+      if (activeTagId === tagId) setActiveTagId("");
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "删除失败");
+    }
+  }
 
   return (
     <aside className="sidebar">
@@ -372,12 +465,17 @@ function Sidebar({ onOpenModal }: { onOpenModal: (modal: Exclude<ModalMode, null
             key={tag.id}
             className={`tag-filter ${activeTagId === tag.id ? "active" : ""}`}
             onClick={() => setActiveTagId(tag.id)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              deleteTag(tag.id, tag.name);
+            }}
+            title={`右键删除「${tag.name}」`}
           >
             <span className="tag-dot" style={{ backgroundColor: tag.color }} />
             <span className="tag-label">{tag.name}</span>
           </button>
         ))}
-        <button className="tag-filter muted" onClick={() => setActiveTagId("")}>
+        <button className="tag-filter muted" onClick={() => onOpenModal("newtag")}>
           <span className="tag-dot plus-dot">+</span>
           <span className="tag-label">新建标签</span>
         </button>
@@ -390,7 +488,11 @@ function Sidebar({ onOpenModal }: { onOpenModal: (modal: Exclude<ModalMode, null
 }
 
 function Header() {
-  const { mode, setMode, search, setSearch } = useNotebook();
+  const { mode, setMode, search, setSearch, refresh } = useNotebook();
+
+  function doSearch() {
+    refresh();
+  }
 
   return (
     <header className="content-header">
@@ -402,32 +504,31 @@ function Header() {
           文本
         </button>
       </div>
-      <label className="search-box">
-        <Search size={18} />
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder={mode === "todo" ? "搜索 TODO..." : "搜索文本..."}
-        />
-      </label>
+      <div className="search-row">
+        <label className="search-box">
+          <Search size={18} />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => event.key === "Enter" && doSearch()}
+            placeholder={mode === "todo" ? "搜索 TODO..." : "搜索文本..."}
+          />
+        </label>
+        <button className="search-button" onClick={doSearch} aria-label="搜索">
+          <Search size={18} />
+          搜索
+        </button>
+      </div>
     </header>
   );
 }
 
 function TodoView() {
   const { todos, tags, refresh } = useNotebook();
-  const [newTitle, setNewTitle] = useState("");
-  const [tagId, setTagId] = useState("work");
-
-  async function addTodo() {
-    if (!newTitle.trim()) return;
-    await api.request<Todo>("/api/todos", {
-      method: "POST",
-      body: JSON.stringify({ title: newTitle, tagId }),
-    });
-    setNewTitle("");
-    await refresh();
-  }
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editTagId, setEditTagId] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
 
   async function updateTodo(todo: Todo, completed: boolean) {
     await api.request<Todo>(`/api/todos/${todo.id}`, {
@@ -442,41 +543,88 @@ function TodoView() {
     await refresh();
   }
 
+  function startEdit(todo: Todo) {
+    setEditingId(todo.id);
+    setEditTitle(todo.title);
+    setEditTagId(todo.tagId || "");
+    setEditDueDate(todo.dueDate || "");
+  }
+
+  async function saveEdit(id: string) {
+    if (!editTitle.trim()) return;
+    await api.request<Todo>(`/api/todos/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: editTitle,
+        tagId: editTagId || null,
+        dueDate: editDueDate || null,
+      }),
+    });
+    setEditingId(null);
+    await refresh();
+  }
+
   return (
     <section className="todo-panel">
-      <div className="quick-create">
-        <input
-          value={newTitle}
-          onChange={(event) => setNewTitle(event.target.value)}
-          onKeyDown={(event) => event.key === "Enter" && addTodo()}
-          placeholder="添加一个待办..."
-        />
-        <select value={tagId} onChange={(event) => setTagId(event.target.value)}>
-          {tags.map((tag) => (
-            <option key={tag.id} value={tag.id}>
-              {tag.name}
-            </option>
-          ))}
-        </select>
-      </div>
       <div className="todo-list">
-        {todos.map((todo) => (
-          <article key={todo.id} className={`todo-row ${todo.completed ? "done" : ""}`}>
-            <button className="check-button" onClick={() => updateTodo(todo, !todo.completed)}>
-              {todo.completed && <Check size={14} />}
-            </button>
-            <strong>{todo.title}</strong>
-            {todo.tagName && (
-              <span className="pill" style={{ backgroundColor: todo.tagColor || "#e5e7eb" }}>
-                {todo.tagName}
-              </span>
-            )}
-            <time>{formatDate(todo.dueDate)}</time>
-            <button className="icon-button danger" onClick={() => removeTodo(todo.id)}>
-              <Trash2 size={16} />
-            </button>
-          </article>
-        ))}
+        {todos.map((todo) =>
+          editingId === todo.id ? (
+            <article key={todo.id} className="todo-row editing">
+              <button className="check-button" onClick={() => saveEdit(todo.id)}>
+                <Check size={14} />
+              </button>
+              <input
+                className="todo-edit-input"
+                value={editTitle}
+                onChange={(event) => setEditTitle(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && saveEdit(todo.id)}
+                autoFocus
+              />
+              <select
+                className="todo-edit-select"
+                value={editTagId}
+                onChange={(event) => setEditTagId(event.target.value)}
+              >
+                <option value="">无标签</option>
+                {tags.map((tag) => (
+                  <option key={tag.id} value={tag.id}>
+                    {tag.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="todo-edit-date"
+                type="date"
+                value={editDueDate}
+                onChange={(event) => setEditDueDate(event.target.value)}
+              />
+              <button className="icon-button" onClick={() => setEditingId(null)}>
+                <X size={16} />
+              </button>
+            </article>
+          ) : (
+            <article key={todo.id} className={`todo-row ${todo.completed ? "done" : ""}`}>
+              <button className="check-button" onClick={() => updateTodo(todo, !todo.completed)}>
+                {todo.completed && <Check size={14} />}
+              </button>
+              <strong onDoubleClick={() => startEdit(todo)}>{todo.title}</strong>
+              {todo.tagName && (
+                <span className="pill" style={{ backgroundColor: todo.tagColor || "#e5e7eb" }}>
+                  {todo.tagName}
+                </span>
+              )}
+              <time>{formatDate(todo.dueDate)}</time>
+              <div className="todo-actions">
+                <button className="icon-button" onClick={() => startEdit(todo)}>
+                  <Pencil size={14} />
+                </button>
+                <button className="icon-button danger" onClick={() => removeTodo(todo.id)}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </article>
+          )
+        )}
       </div>
     </section>
   );
@@ -513,37 +661,99 @@ function Editor() {
   const [content, setContent] = useState(selectedNote?.content || "");
   const [summary, setSummary] = useState(selectedNote?.summary || "");
   const [tagIds, setTagIds] = useState<string[]>(selectedNote?.tags.map((tag) => tag.id) || []);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTitle(selectedNote?.title || "");
     setContent(selectedNote?.content || "");
     setSummary(selectedNote?.summary || "");
     setTagIds(selectedNote?.tags.map((tag) => tag.id) || []);
+    setError("");
   }, [selectedNote]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    }
+    if (showMoreMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showMoreMenu]);
 
   if (!selectedNote) return null;
 
   async function saveNote() {
-    const note = await api.request<Note>(`/api/notes/${selectedNote!.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ title, content, summary, tagIds }),
-    });
-    setSelectedNote(note);
-    await refresh();
+    setSaving(true);
+    setError("");
+    try {
+      const note = await api.request<Note>(`/api/notes/${selectedNote!.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title, content, summary, tagIds }),
+      });
+      setSelectedNote(note);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function summarize() {
-    const payload = await api.request<{ summary: string }>(`/api/notes/${selectedNote!.id}/summarize`, {
-      method: "POST",
-    });
-    setSummary(payload.summary);
-    await refresh();
+    setError("");
+    try {
+      const payload = await api.request<{ summary: string }>(`/api/notes/${selectedNote!.id}/summarize`, {
+        method: "POST",
+      });
+      setSummary(payload.summary);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "总结失败");
+    }
   }
 
   async function deleteNote() {
-    await api.request(`/api/notes/${selectedNote!.id}`, { method: "DELETE" });
-    setSelectedNote(null);
-    await refresh();
+    setError("");
+    try {
+      await api.request(`/api/notes/${selectedNote!.id}`, { method: "DELETE" });
+      setSelectedNote(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除失败");
+    }
+  }
+
+  function getWordCount() {
+    const text = content.replace(/[#>*_`-]/g, "").trim();
+    const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+    const englishWords = text.replace(/[\u4e00-\u9fa5]/g, " ").split(/\s+/).filter(Boolean).length;
+    return `中文字符：${chineseChars}，英文单词：${englishWords}，总字符数：${content.length}`;
+  }
+
+  function exportMarkdown() {
+    const blob = new Blob([`# ${title}\n\n${content}`], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title || "未命名笔记"}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowMoreMenu(false);
+  }
+
+  function copyContent() {
+    navigator.clipboard.writeText(content).then(() => {
+      alert("内容已复制到剪贴板");
+      setShowMoreMenu(false);
+    }).catch(() => {
+      alert("复制失败");
+    });
   }
 
   return (
@@ -554,17 +764,36 @@ function Editor() {
           <ArrowLeft size={20} />
         </button>
         <input className="title-input" value={title} onChange={(event) => setTitle(event.target.value)} />
-        <button className="text-button" onClick={saveNote}>
+        <button className="text-button" onClick={saveNote} disabled={saving}>
           <Save size={16} />
-          保存
+          {saving ? "保存中…" : "保存"}
         </button>
         <button className="icon-button danger" onClick={deleteNote}>
           <Trash2 size={18} />
         </button>
-        <button className="icon-button" aria-label="更多">
-          <MoreVertical size={18} />
-        </button>
+        <div className="more-menu-wrapper" ref={moreMenuRef}>
+          <button className="icon-button" aria-label="更多" onClick={() => setShowMoreMenu(!showMoreMenu)}>
+            <MoreVertical size={18} />
+          </button>
+          {showMoreMenu && (
+            <div className="more-menu-dropdown">
+              <button onClick={() => { alert(getWordCount()); setShowMoreMenu(false); }}>
+                <FileText size={16} />
+                字数统计
+              </button>
+              <button onClick={exportMarkdown}>
+                <Download size={16} />
+                导出 Markdown
+              </button>
+              <button onClick={copyContent}>
+                <ClipboardCopy size={16} />
+                复制内容
+              </button>
+            </div>
+          )}
+        </div>
       </header>
+      {error && <div className="editor-error">{error}</div>}
       <div className="editor-tags">
         {tags.map((tag) => (
           <label key={tag.id} className="tag-checkbox">
@@ -662,6 +891,7 @@ export function App() {
       </section>
       {activeModal === "profile" && <ProfileModal onClose={() => setActiveModal(null)} />}
       {activeModal === "settings" && <SettingsModal onClose={() => setActiveModal(null)} />}
+      {activeModal === "newtag" && <NewTagModal onClose={() => setActiveModal(null)} />}
       {selectedNote && <Editor />}
     </main>
   );

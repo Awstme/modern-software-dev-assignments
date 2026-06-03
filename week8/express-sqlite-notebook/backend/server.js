@@ -18,41 +18,6 @@ db.exec(`
   PRAGMA journal_mode = WAL;
   PRAGMA foreign_keys = ON;
 
-  CREATE TABLE IF NOT EXISTS tags (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    color TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS todos (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    tag_id TEXT,
-    due_date TEXT,
-    completed INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE SET NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS notes (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL DEFAULT '',
-    summary TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS note_tags (
-    note_id TEXT NOT NULL,
-    tag_id TEXT NOT NULL,
-    PRIMARY KEY (note_id, tag_id),
-    FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
-    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-  );
-
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE,
@@ -63,61 +28,64 @@ db.exec(`
     password_salt TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS tags (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS todos (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    tag_id TEXT,
+    due_date TEXT,
+    completed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS notes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS note_tags (
+    note_id TEXT NOT NULL,
+    tag_id TEXT NOT NULL,
+    PRIMARY KEY (note_id, tag_id),
+    FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+  );
 `);
+
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_username_idx ON users(username)");
 
 function columnExists(table, column) {
   return db.prepare(`PRAGMA table_info(${table})`).all().some((row) => row.name === column);
 }
 
 [
-  ["username", "TEXT"],
-  ["password_hash", "TEXT"],
-  ["password_salt", "TEXT"],
-].forEach(([column, definition]) => {
-  if (!columnExists("users", column)) {
-    db.exec(`ALTER TABLE users ADD COLUMN ${column} ${definition}`);
+  ["tags", "user_id", "TEXT NOT NULL DEFAULT ''"],
+  ["todos", "user_id", "TEXT NOT NULL DEFAULT ''"],
+  ["notes", "user_id", "TEXT NOT NULL DEFAULT ''"],
+].forEach(([table, column, definition]) => {
+  if (!columnExists(table, column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 });
-
-db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_username_idx ON users(username)");
-
-const tagCount = db.prepare("SELECT COUNT(*) AS count FROM tags").get().count;
-if (tagCount === 0) {
-  const seedTag = db.prepare("INSERT INTO tags (id, name, color) VALUES (?, ?, ?)");
-  [
-    ["work", "工作", "#dbeafe"],
-    ["study", "学习", "#dcfce7"],
-    ["life", "生活", "#f3e8ff"],
-    ["idea", "想法", "#fef3c7"],
-  ].forEach((tag) => seedTag.run(...tag));
-}
-
-const todoCount = db.prepare("SELECT COUNT(*) AS count FROM todos").get().count;
-if (todoCount === 0) {
-  const seedTodo = db.prepare(
-    "INSERT INTO todos (id, title, tag_id, due_date, completed) VALUES (?, ?, ?, ?, ?)"
-  );
-  [
-    [crypto.randomUUID(), "完成产品需求文档", "work", "2026-06-05", 0],
-    [crypto.randomUUID(), "阅读设计模式书籍", "study", "2026-06-03", 0],
-    [crypto.randomUUID(), "健身打卡", "life", "2026-06-03", 0],
-    [crypto.randomUUID(), "整理本周会议记录", "work", "2026-06-04", 0],
-  ].forEach((todo) => seedTodo.run(...todo));
-}
-
-const noteCount = db.prepare("SELECT COUNT(*) AS count FROM notes").get().count;
-if (noteCount === 0) {
-  const noteId = crypto.randomUUID();
-  db.prepare(
-    "INSERT INTO notes (id, title, content, summary) VALUES (?, ?, ?, ?)"
-  ).run(
-    noteId,
-    "React 学习笔记",
-    "# React 是什么\n\nReact 是一个用于构建用户界面的 JavaScript 库。\n\n## 核心概念\n\n- 组件化\n- JSX\n- 状态管理\n- 生命周期与副作用",
-    "本文记录 React 的核心概念，包括组件化、JSX、状态管理和副作用处理。"
-  );
-  db.prepare("INSERT INTO note_tags (note_id, tag_id) VALUES (?, ?)").run(noteId, "study");
-}
 
 const userCount = db.prepare("SELECT COUNT(*) AS count FROM users").get().count;
 if (userCount === 0) {
@@ -129,6 +97,55 @@ if (userCount === 0) {
     "#dbeafe"
   );
 }
+
+db.prepare("UPDATE tags SET user_id = 'guest-demo' WHERE user_id = ''").run();
+db.prepare("UPDATE todos SET user_id = 'guest-demo' WHERE user_id = ''").run();
+db.prepare("UPDATE notes SET user_id = 'guest-demo' WHERE user_id = ''").run();
+
+function seedUserData(userId) {
+  const tagCount = db.prepare("SELECT COUNT(*) AS count FROM tags WHERE user_id = ?").get(userId).count;
+  if (tagCount > 0) return;
+
+  const seedTag = db.prepare("INSERT INTO tags (id, user_id, name, color) VALUES (?, ?, ?, ?)");
+  const tagIds = {
+    work: crypto.randomUUID(),
+    study: crypto.randomUUID(),
+    life: crypto.randomUUID(),
+    idea: crypto.randomUUID(),
+  };
+  [
+    [tagIds.work, userId, "工作", "#dbeafe"],
+    [tagIds.study, userId, "学习", "#dcfce7"],
+    [tagIds.life, userId, "生活", "#f3e8ff"],
+    [tagIds.idea, userId, "想法", "#fef3c7"],
+  ].forEach((tag) => seedTag.run(...tag));
+
+  if (userId === "guest-demo") {
+    const seedTodo = db.prepare(
+      "INSERT INTO todos (id, user_id, title, tag_id, due_date, completed) VALUES (?, ?, ?, ?, ?, ?)"
+    );
+    [
+      [crypto.randomUUID(), userId, "完成产品需求文档", tagIds.work, "2026-06-05", 0],
+      [crypto.randomUUID(), userId, "阅读设计模式书籍", tagIds.study, "2026-06-03", 0],
+      [crypto.randomUUID(), userId, "健身打卡", tagIds.life, "2026-06-03", 0],
+      [crypto.randomUUID(), userId, "整理本周会议记录", tagIds.work, "2026-06-04", 0],
+    ].forEach((todo) => seedTodo.run(...todo));
+
+    const noteId = crypto.randomUUID();
+    db.prepare(
+      "INSERT INTO notes (id, user_id, title, content, summary) VALUES (?, ?, ?, ?, ?)"
+    ).run(
+      noteId,
+      userId,
+      "React 学习笔记",
+      "# React 是什么\n\nReact 是一个用于构建用户界面的 JavaScript 库。\n\n## 核心概念\n\n- 组件化\n- JSX\n- 状态管理\n- 生命周期与副作用",
+      "本文记录 React 的核心概念，包括组件化、JSX、状态管理和副作用处理。"
+    );
+    db.prepare("INSERT INTO note_tags (note_id, tag_id) VALUES (?, ?)").run(noteId, tagIds.study);
+  }
+}
+
+seedUserData("guest-demo");
 
 const app = express();
 app.use(cors());
@@ -193,8 +210,17 @@ function colorForUsername(username) {
   return colors[username.length % colors.length];
 }
 
-function getTags() {
-  return db.prepare("SELECT id, name, color FROM tags ORDER BY created_at, name").all();
+function requireUser(req, res, next) {
+  const userId = req.headers["x-user-id"];
+  if (typeof userId !== "string" || userId.trim().length === 0) {
+    return res.status(401).json({ error: "请先登录" });
+  }
+  const user = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
+  if (!user) {
+    return res.status(401).json({ error: "用户不存在" });
+  }
+  req.userId = userId;
+  next();
 }
 
 function todoRow(row) {
@@ -230,7 +256,7 @@ function noteRow(row) {
   };
 }
 
-function getNoteById(id) {
+function getNoteById(id, userId) {
   const row = db
     .prepare(`
       SELECT notes.*,
@@ -238,10 +264,10 @@ function getNoteById(id) {
       FROM notes
       LEFT JOIN note_tags ON note_tags.note_id = notes.id
       LEFT JOIN tags ON tags.id = note_tags.tag_id
-      WHERE notes.id = ?
+      WHERE notes.id = ? AND notes.user_id = ?
       GROUP BY notes.id
     `)
-    .get(id);
+    .get(id, userId);
   return row ? noteRow(row) : null;
 }
 
@@ -251,8 +277,9 @@ app.get("/api/health", (_req, res) => {
 
 app.post("/api/auth/guest", (_req, res) => {
   const user = db
-    .prepare("SELECT id, name, role, avatar_color AS avatarColor FROM users WHERE id = ?")
+    .prepare("SELECT id, username, name, role, avatar_color AS avatarColor FROM users WHERE id = ?")
     .get("guest-demo");
+  seedUserData("guest-demo");
   res.json(publicUser(user));
 });
 
@@ -269,6 +296,8 @@ app.post("/api/auth/register", (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(id, username, name, "Member", colorForUsername(username), hash, salt);
 
+  seedUserData(id);
+
   const user = db
     .prepare("SELECT id, username, name, role, avatar_color AS avatarColor FROM users WHERE id = ?")
     .get(id);
@@ -282,22 +311,32 @@ app.post("/api/auth/login", (req, res) => {
     authError("用户名或密码不正确", 401);
   }
 
+  seedUserData(user.id);
   res.json(publicUser(user));
 });
 
-app.get("/api/tags", (_req, res) => {
-  res.json(getTags());
+app.get("/api/tags", requireUser, (req, res) => {
+  const rows = db
+    .prepare("SELECT id, name, color FROM tags WHERE user_id = ? ORDER BY created_at, name")
+    .all(req.userId);
+  res.json(rows);
 });
 
-app.post("/api/tags", (req, res) => {
+app.post("/api/tags", requireUser, (req, res) => {
   const name = requiredString(req.body.name, "name");
   const color = optionalString(req.body.color) || "#dbeafe";
   const id = crypto.randomUUID();
-  db.prepare("INSERT INTO tags (id, name, color) VALUES (?, ?, ?)").run(id, name, color);
+  db.prepare("INSERT INTO tags (id, user_id, name, color) VALUES (?, ?, ?, ?)").run(id, req.userId, name, color);
   res.status(201).json({ id, name, color });
 });
 
-app.get("/api/todos", (req, res) => {
+app.delete("/api/tags/:id", requireUser, (req, res) => {
+  const result = db.prepare("DELETE FROM tags WHERE id = ? AND user_id = ?").run(req.params.id, req.userId);
+  if (result.changes === 0) return res.status(404).json({ error: "Tag not found" });
+  res.status(204).end();
+});
+
+app.get("/api/todos", requireUser, (req, res) => {
   const search = `%${String(req.query.search || "").trim()}%`;
   const tagId = String(req.query.tagId || "");
   const rows = db
@@ -305,22 +344,23 @@ app.get("/api/todos", (req, res) => {
       SELECT todos.*, tags.name AS tag_name, tags.color AS tag_color
       FROM todos
       LEFT JOIN tags ON tags.id = todos.tag_id
-      WHERE todos.title LIKE ?
+      WHERE todos.user_id = ?
+        AND todos.title LIKE ?
         AND (? = '' OR todos.tag_id = ?)
       ORDER BY todos.completed, COALESCE(todos.due_date, '9999-12-31'), todos.created_at DESC
     `)
-    .all(search, tagId, tagId);
+    .all(req.userId, search, tagId, tagId);
   res.json(rows.map(todoRow));
 });
 
-app.post("/api/todos", (req, res) => {
+app.post("/api/todos", requireUser, (req, res) => {
   const title = requiredString(req.body.title, "title");
   const tagId = optionalString(req.body.tagId);
   const dueDate = optionalString(req.body.dueDate);
   const id = crypto.randomUUID();
   db.prepare(
-    "INSERT INTO todos (id, title, tag_id, due_date, completed) VALUES (?, ?, ?, ?, 0)"
-  ).run(id, title, tagId, dueDate);
+    "INSERT INTO todos (id, user_id, title, tag_id, due_date, completed) VALUES (?, ?, ?, ?, ?, 0)"
+  ).run(id, req.userId, title, tagId, dueDate);
   const row = db
     .prepare(`
       SELECT todos.*, tags.name AS tag_name, tags.color AS tag_color
@@ -330,8 +370,8 @@ app.post("/api/todos", (req, res) => {
   res.status(201).json(todoRow(row));
 });
 
-app.patch("/api/todos/:id", (req, res) => {
-  const current = db.prepare("SELECT * FROM todos WHERE id = ?").get(req.params.id);
+app.patch("/api/todos/:id", requireUser, (req, res) => {
+  const current = db.prepare("SELECT * FROM todos WHERE id = ? AND user_id = ?").get(req.params.id, req.userId);
   if (!current) return res.status(404).json({ error: "Todo not found" });
 
   const title = req.body.title === undefined ? current.title : requiredString(req.body.title, "title");
@@ -343,8 +383,8 @@ app.patch("/api/todos/:id", (req, res) => {
   db.prepare(`
     UPDATE todos
     SET title = ?, tag_id = ?, due_date = ?, completed = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `).run(title, tagId, dueDate, completed, req.params.id);
+    WHERE id = ? AND user_id = ?
+  `).run(title, tagId, dueDate, completed, req.params.id, req.userId);
 
   const row = db
     .prepare(`
@@ -355,12 +395,12 @@ app.patch("/api/todos/:id", (req, res) => {
   res.json(todoRow(row));
 });
 
-app.delete("/api/todos/:id", (req, res) => {
-  db.prepare("DELETE FROM todos WHERE id = ?").run(req.params.id);
+app.delete("/api/todos/:id", requireUser, (req, res) => {
+  db.prepare("DELETE FROM todos WHERE id = ? AND user_id = ?").run(req.params.id, req.userId);
   res.status(204).end();
 });
 
-app.get("/api/notes", (req, res) => {
+app.get("/api/notes", requireUser, (req, res) => {
   const search = `%${String(req.query.search || "").trim()}%`;
   const tagId = String(req.query.tagId || "");
   const rows = db
@@ -370,7 +410,8 @@ app.get("/api/notes", (req, res) => {
       FROM notes
       LEFT JOIN note_tags ON note_tags.note_id = notes.id
       LEFT JOIN tags ON tags.id = note_tags.tag_id
-      WHERE (notes.title LIKE ? OR notes.content LIKE ?)
+      WHERE notes.user_id = ?
+        AND (notes.title LIKE ? OR notes.content LIKE ?)
         AND (? = '' OR EXISTS (
           SELECT 1 FROM note_tags filter_tags
           WHERE filter_tags.note_id = notes.id AND filter_tags.tag_id = ?
@@ -378,33 +419,33 @@ app.get("/api/notes", (req, res) => {
       GROUP BY notes.id
       ORDER BY notes.updated_at DESC
     `)
-    .all(search, search, tagId, tagId);
+    .all(req.userId, search, search, tagId, tagId);
   res.json(rows.map(noteRow));
 });
 
-app.get("/api/notes/:id", (req, res) => {
-  const note = getNoteById(req.params.id);
+app.get("/api/notes/:id", requireUser, (req, res) => {
+  const note = getNoteById(req.params.id, req.userId);
   if (!note) return res.status(404).json({ error: "Note not found" });
   res.json(note);
 });
 
-app.post("/api/notes", (req, res) => {
+app.post("/api/notes", requireUser, (req, res) => {
   const title = requiredString(req.body.title, "title");
   const content = typeof req.body.content === "string" ? req.body.content : "";
   const tagIds = Array.isArray(req.body.tagIds) ? req.body.tagIds : [];
   const id = crypto.randomUUID();
 
-  db.prepare("INSERT INTO notes (id, title, content) VALUES (?, ?, ?)").run(id, title, content);
+  db.prepare("INSERT INTO notes (id, user_id, title, content) VALUES (?, ?, ?, ?)").run(id, req.userId, title, content);
   const linkTag = db.prepare("INSERT OR IGNORE INTO note_tags (note_id, tag_id) VALUES (?, ?)");
   tagIds.forEach((tagId) => {
     if (typeof tagId === "string") linkTag.run(id, tagId);
   });
 
-  res.status(201).json(getNoteById(id));
+  res.status(201).json(getNoteById(id, req.userId));
 });
 
-app.patch("/api/notes/:id", (req, res) => {
-  const current = db.prepare("SELECT * FROM notes WHERE id = ?").get(req.params.id);
+app.patch("/api/notes/:id", requireUser, (req, res) => {
+  const current = db.prepare("SELECT * FROM notes WHERE id = ? AND user_id = ?").get(req.params.id, req.userId);
   if (!current) return res.status(404).json({ error: "Note not found" });
 
   const title = req.body.title === undefined ? current.title : requiredString(req.body.title, "title");
@@ -414,8 +455,8 @@ app.patch("/api/notes/:id", (req, res) => {
   db.prepare(`
     UPDATE notes
     SET title = ?, content = ?, summary = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `).run(title, content, summary, req.params.id);
+    WHERE id = ? AND user_id = ?
+  `).run(title, content, summary, req.params.id, req.userId);
 
   if (Array.isArray(req.body.tagIds)) {
     db.prepare("DELETE FROM note_tags WHERE note_id = ?").run(req.params.id);
@@ -425,16 +466,16 @@ app.patch("/api/notes/:id", (req, res) => {
     });
   }
 
-  res.json(getNoteById(req.params.id));
+  res.json(getNoteById(req.params.id, req.userId));
 });
 
-app.delete("/api/notes/:id", (req, res) => {
-  db.prepare("DELETE FROM notes WHERE id = ?").run(req.params.id);
+app.delete("/api/notes/:id", requireUser, (req, res) => {
+  db.prepare("DELETE FROM notes WHERE id = ? AND user_id = ?").run(req.params.id, req.userId);
   res.status(204).end();
 });
 
-app.post("/api/notes/:id/summarize", (req, res) => {
-  const note = db.prepare("SELECT * FROM notes WHERE id = ?").get(req.params.id);
+app.post("/api/notes/:id/summarize", requireUser, (req, res) => {
+  const note = db.prepare("SELECT * FROM notes WHERE id = ? AND user_id = ?").get(req.params.id, req.userId);
   if (!note) return res.status(404).json({ error: "Note not found" });
 
   const plain = note.content
@@ -445,9 +486,10 @@ app.post("/api/notes/:id/summarize", (req, res) => {
     ? `本文主要记录：${plain.slice(0, 120)}${plain.length > 120 ? "..." : ""}`
     : "这篇笔记还没有足够内容生成总结。";
 
-  db.prepare("UPDATE notes SET summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+  db.prepare("UPDATE notes SET summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?").run(
     summary,
-    req.params.id
+    req.params.id,
+    req.userId
   );
   res.json({ summary });
 });
