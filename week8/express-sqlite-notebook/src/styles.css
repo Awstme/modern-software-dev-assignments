@@ -958,15 +958,32 @@ textarea:focus-visible {
 
 .todo-row {
   display: grid;
-  grid-template-columns: var(--todo-columns);
+  grid-template-columns: 26px minmax(120px, 1fr) 120px 120px 72px;
   align-items: center;
-  gap: var(--todo-gap);
+  gap: 16px;
   min-height: 66px;
   border-bottom: 1px solid rgba(226, 233, 243, 0.9);
   padding: 0 16px;
   transition:
     background-color 160ms ease,
-    transform 160ms ease;
+    transform 160ms ease,
+    opacity 280ms ease;
+}
+
+.todo-row.done {
+  opacity: 0.55;
+  animation: todo-slide-down 300ms ease both;
+}
+
+@keyframes todo-slide-down {
+  0% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
 }
 
 .todo-row.editing {
@@ -996,6 +1013,10 @@ textarea:focus-visible {
 
 .todo-row:hover {
   background: rgba(247, 251, 253, 0.96);
+}
+
+.todo-row.done {
+  opacity: 0.55;
 }
 
 .todo-row.done strong {
