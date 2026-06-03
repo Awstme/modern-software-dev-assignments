@@ -263,6 +263,44 @@ textarea:focus-visible {
   color: #69778b;
 }
 
+.tag-filter-wrap {
+  position: relative;
+}
+
+.tag-filter-wrap .tag-filter {
+  width: 100%;
+}
+
+.tag-filter-wrap.can-delete .tag-filter {
+  padding-right: 8px;
+}
+
+.tag-delete-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(194, 63, 72, 0.15);
+  color: var(--rose);
+  cursor: pointer;
+  padding: 0;
+  z-index: 2;
+}
+
+.tag-delete-btn:hover {
+  background: rgba(194, 63, 72, 0.3);
+}
+
+.minus-dot {
+  color: var(--rose) !important;
+  font-size: 13px !important;
+}
+
 .tag-dot {
   position: relative;
   display: grid;

@@ -669,6 +669,7 @@ function TemplateModal({ onClose, onSelect }: { onClose: () => void; onSelect: (
 
 function Sidebar({ onOpenModal }: { onOpenModal: (modal: Exclude<ModalMode, null>) => void }) {
   const { tags, activeTagId, setActiveTagId, currentUser, refresh } = useNotebook();
+  const [deleting, setDeleting] = useState(false);
 
   async function deleteTag(tagId: string, tagName: string) {
     if (!confirm(`确定删除标签「${tagName}」吗？关联的待办将取消标签，笔记将移除该标签。`)) return;
@@ -701,24 +702,42 @@ function Sidebar({ onOpenModal }: { onOpenModal: (modal: Exclude<ModalMode, null
           <span className="tag-label">全部</span>
         </button>
         {tags.map((tag) => (
-          <button
-            key={tag.id}
-            className={`tag-filter ${activeTagId === tag.id ? "active" : ""}`}
-            onClick={() => setActiveTagId(tag.id)}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              deleteTag(tag.id, tag.name);
-            }}
-            title={`右键删除「${tag.name}」`}
-          >
-            <span className="tag-dot" style={{ backgroundColor: tag.color }} />
-            <span className="tag-label">{tag.name}</span>
-          </button>
+          <div key={tag.id} className={`tag-filter-wrap ${deleting ? "can-delete" : ""}`}>
+            <button
+              className={`tag-filter ${activeTagId === tag.id ? "active" : ""}`}
+              onClick={() => setActiveTagId(tag.id)}
+              title={deleting ? `点击删除「${tag.name}」` : undefined}
+            >
+              <span className="tag-dot" style={{ backgroundColor: tag.color }} />
+              <span className="tag-label">{tag.name}</span>
+            </button>
+            {deleting && (
+              <button
+                className="tag-delete-btn"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  deleteTag(tag.id, tag.name);
+                }}
+                aria-label={`删除 ${tag.name}`}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
         ))}
         <button className="tag-filter muted" onClick={() => onOpenModal("newtag")}>
           <span className="tag-dot plus-dot">+</span>
           <span className="tag-label">新建标签</span>
         </button>
+        {tags.length > 0 && (
+          <button
+            className={`tag-filter muted${deleting ? " active" : ""}`}
+            onClick={() => setDeleting(!deleting)}
+          >
+            <span className="tag-dot minus-dot">−</span>
+            <span className="tag-label">{deleting ? "完成删除" : "删除标签"}</span>
+          </button>
+        )}
       </nav>
       <button className="settings-button" aria-label="settings" onClick={() => onOpenModal("settings")}>
         <Settings size={18} />
@@ -1006,6 +1025,17 @@ function Editor() {
     setSelectedNote(null);
   }
 
+  async function deleteTag(tagId: string, tagName: string) {
+    if (!confirm(`确定删除标签「${tagName}」吗？关联的待办将取消标签，笔记将移除该标签。`)) return;
+    try {
+      await api.request(`/api/tags/${tagId}`, { method: "DELETE" });
+      setTagIds((current) => current.filter((id) => id !== tagId));
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除失败");
+    }
+  }
+
   async function quickCreateTag() {
     const trimmed = quickTagName.trim();
     if (!trimmed) return;
@@ -1114,7 +1144,10 @@ function Editor() {
       {error && <div className="editor-error">{error}</div>}
       <div className="editor-tags">
         {tags.map((tag) => (
-          <label key={tag.id} className="tag-checkbox">
+          <label
+            key={tag.id}
+            className="tag-checkbox"
+          >
             <input
               type="checkbox"
               checked={tagIds.includes(tag.id)}
