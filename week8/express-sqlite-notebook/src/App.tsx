@@ -23,9 +23,55 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { create } from "zustand";
 
 type Mode = "todo" | "notes";
-type ModalMode = "profile" | "settings" | "newtag" | null;
+type ModalMode = "profile" | "settings" | "newtag" | "template" | null;
 type ThemeId = "blue" | "green" | "gold" | "rose";
 type AuthMode = "login" | "register";
+
+type NoteTemplate = {
+  id: string;
+  label: string;
+  title: string;
+  content: string;
+};
+
+const noteTemplates: NoteTemplate[] = [
+  {
+    id: "blank",
+    label: "空白笔记",
+    title: "新的文本笔记",
+    content: "# 新的文本笔记\n\n在这里记录内容。",
+  },
+  {
+    id: "meeting",
+    label: "会议记录",
+    title: "会议记录",
+    content: "# 会议记录\n\n**日期：**\n\n**参会人：**\n\n## 议题\n\n1. \n\n## 结论\n\n- \n\n## 待办\n\n- [ ] ",
+  },
+  {
+    id: "daily",
+    label: "每日总结",
+    title: "每日总结",
+    content: "# 每日总结\n\n## 今日完成\n\n- \n\n## 遇到的问题\n\n- \n\n## 明日计划\n\n- ",
+  },
+  {
+    id: "study",
+    label: "学习笔记",
+    title: "学习笔记",
+    content: "# 学习笔记\n\n## 核心概念\n\n\n\n## 要点摘录\n\n- \n\n## 个人理解\n\n\n\n## 参考资料\n\n- ",
+  },
+  {
+    id: "todo-list",
+    label: "待办清单",
+    title: "待办清单",
+    content: "# 待办清单\n\n## 紧急\n\n- [ ] \n\n## 重要\n\n- [ ] \n\n## 可选\n\n- [ ] ",
+  },
+  {
+    id: "brainstorm",
+    label: "头脑风暴",
+    title: "头脑风暴",
+    content: "# 头脑风暴\n\n**主题：**\n\n## 想法\n\n- \n\n## 可行性分析\n\n| 想法 | 可行性 | 优先级 |\n| --- | --- | --- |\n|  |  |  |\n\n## 下一步\n\n- ",
+  },
+];
 
 type Tag = {
   id: string;
@@ -501,6 +547,21 @@ function NewTagModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+function TemplateModal({ onClose, onSelect }: { onClose: () => void; onSelect: (tpl: NoteTemplate) => void }) {
+  return (
+    <Modal title="选择模板" subtitle="从预设模板新建笔记，或创建空白笔记。" onClose={onClose}>
+      <div className="template-grid">
+        {noteTemplates.map((tpl) => (
+          <button key={tpl.id} className="template-card" onClick={() => onSelect(tpl)}>
+            <FileText size={20} />
+            <span>{tpl.label}</span>
+          </button>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
 function Sidebar({ onOpenModal }: { onOpenModal: (modal: Exclude<ModalMode, null>) => void }) {
   const { tags, activeTagId, setActiveTagId, currentUser, refresh } = useNotebook();
 
@@ -972,12 +1033,16 @@ export function App() {
       store.setPendingEditId(todo.id);
       return;
     }
+    setActiveModal("template");
+  }
 
+  async function createNoteFromTemplate(tpl: NoteTemplate) {
+    setActiveModal(null);
     const note = await api.request<Note>("/api/notes", {
       method: "POST",
       body: JSON.stringify({
-        title: "新的文本笔记",
-        content: "# 新的文本笔记\n\n在这里记录内容。",
+        title: tpl.title,
+        content: tpl.content,
         tagIds: activeTagId ? [activeTagId] : tags[0] ? [tags[0].id] : [],
       }),
     });
@@ -998,6 +1063,7 @@ export function App() {
       {activeModal === "profile" && <ProfileModal onClose={() => setActiveModal(null)} />}
       {activeModal === "settings" && <SettingsModal onClose={() => setActiveModal(null)} />}
       {activeModal === "newtag" && <NewTagModal onClose={() => setActiveModal(null)} />}
+      {activeModal === "template" && <TemplateModal onClose={() => setActiveModal(null)} onSelect={createNoteFromTemplate} />}
       {selectedNote && <Editor />}
     </main>
   );
