@@ -265,10 +265,8 @@ textarea:focus-visible {
 
 .tag-filter-wrap {
   position: relative;
-}
-
-.tag-filter-wrap .tag-filter {
-  width: 100%;
+  display: inline-flex;
+  flex: 0 0 auto;
 }
 
 .tag-filter-wrap.can-delete .tag-filter {
@@ -1017,9 +1015,9 @@ textarea:focus-visible {
 
 .todo-row {
   display: grid;
-  grid-template-columns: 26px minmax(120px, 1fr) 120px 120px 72px;
+  grid-template-columns: var(--todo-columns);
   align-items: center;
-  gap: 16px;
+  gap: var(--todo-gap);
   min-height: 66px;
   border-bottom: 1px solid rgba(226, 233, 243, 0.9);
   padding: 0 16px;
@@ -1575,20 +1573,25 @@ time {
 
   .sidebar {
     position: static;
-    display: grid;
-    grid-template-columns: 46px minmax(0, 1fr) 46px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
     align-items: center;
+    justify-content: flex-start;
     gap: 8px;
-    overflow: hidden;
+    overflow: visible;
     border-right: 0;
     border-bottom: 1px solid #e4e9f1;
-    min-height: 74px;
+    width: auto;
+    min-height: auto;
     padding: 12px;
+    background: #ffffff;
   }
 
   .tag-rail {
     position: static;
     display: flex;
+    flex: 1;
     width: auto;
     max-width: none;
     min-width: 0;
@@ -1647,6 +1650,7 @@ time {
 
   .avatar-button,
   .settings-button {
+    flex: 0 0 42px;
     width: 42px;
     height: 42px;
   }
