@@ -256,6 +256,47 @@ function Modal({
   );
 }
 
+function ConfirmModal({
+  title,
+  message,
+  confirmLabel,
+  cancelLabel,
+  onConfirm,
+  onCancel,
+  onDismiss,
+}: {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  onDismiss?: () => void;
+}) {
+  return (
+    <Modal title={title} onClose={onDismiss || onCancel}>
+      <p className="confirm-message">{message}</p>
+      <div className="confirm-actions">
+        <button className="text-button danger" onClick={onCancel}>{cancelLabel || "取消"}</button>
+        <button className="text-button primary" onClick={onConfirm}>
+          {confirmLabel || "确认"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function InfoModal({ title, message, onClose }: { title: string; message: string; onClose: () => void }) {
+  return (
+    <Modal title={title} onClose={onClose}>
+      <p className="confirm-message">{message}</p>
+      <div className="confirm-actions">
+        <button className="text-button primary" onClick={onClose}>好的</button>
+      </div>
+    </Modal>
+  );
+}
+
 function ProfileModal({ onClose }: { onClose: () => void }) {
   const { currentUser, setCurrentUser, refresh } = useNotebook();
   const [authMode, setAuthMode] = useState<AuthMode>("login");
@@ -892,6 +933,9 @@ function Editor() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [toast, setToast] = useState("");
+  const [confirmState, setConfirmState] = useState<"close" | null>(null);
+  const [infoState, setInfoState] = useState<string | null>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -900,6 +944,7 @@ function Editor() {
     setSummary(selectedNote?.summary || "");
     setTagIds(selectedNote?.tags.map((tag) => tag.id) || []);
     setError("");
+    setToast("");
   }, [selectedNote]);
 
   useEffect(() => {
@@ -916,6 +961,11 @@ function Editor() {
 
   if (!selectedNote) return null;
 
+  const isDirty =
+    title !== (selectedNote.title || "") ||
+    content !== (selectedNote.content || "") ||
+    tagIds.join(",") !== (selectedNote.tags.map((t) => t.id).join(",") || "");
+
   async function saveNote() {
     setSaving(true);
     setError("");
@@ -926,11 +976,32 @@ function Editor() {
       });
       setSelectedNote(note);
       await refresh();
+      setToast("已保存");
+      setTimeout(() => setToast(""), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
     } finally {
       setSaving(false);
     }
+  }
+
+  async function tryClose() {
+    if (!isDirty) {
+      setSelectedNote(null);
+      return;
+    }
+    setConfirmState("close");
+  }
+
+  async function handleConfirmClose() {
+    setConfirmState(null);
+    await saveNote();
+    setSelectedNote(null);
+  }
+
+  function handleCancelClose() {
+    setConfirmState(null);
+    setSelectedNote(null);
   }
 
   async function summarize() {
@@ -985,16 +1056,16 @@ function Editor() {
   }
 
   return (
-    <div className="modal-backdrop editor-backdrop" role="presentation" onMouseDown={() => setSelectedNote(null)}>
+    <div className="modal-backdrop editor-backdrop" role="presentation" onMouseDown={tryClose}>
       <main className="editor-shell" onMouseDown={(event) => event.stopPropagation()}>
       <header className="editor-header">
-        <button className="icon-button" onClick={() => setSelectedNote(null)}>
+        <button className="icon-button" onClick={tryClose}>
           <ArrowLeft size={20} />
         </button>
         <input className="title-input" value={title} onChange={(event) => setTitle(event.target.value)} />
-        <button className="text-button" onClick={saveNote} disabled={saving}>
+        <button className={`text-button${isDirty ? " save-dirty" : ""}`} onClick={saveNote} disabled={saving || !isDirty}>
           <Save size={16} />
-          {saving ? "保存中…" : "保存"}
+          {saving ? "保存中…" : isDirty ? "保存" : "已保存"}
         </button>
         <button className="icon-button danger" onClick={deleteNote}>
           <Trash2 size={18} />
@@ -1005,7 +1076,7 @@ function Editor() {
           </button>
           {showMoreMenu && (
             <div className="more-menu-dropdown">
-              <button onClick={() => { alert(getWordCount()); setShowMoreMenu(false); }}>
+              <button onClick={() => { setInfoState(getWordCount()); setShowMoreMenu(false); }}>
                 <FileText size={16} />
                 字数统计
               </button>
@@ -1053,6 +1124,21 @@ function Editor() {
         onChange={(event) => setContent(event.target.value)}
         spellCheck={false}
       />
+      {toast && <div className="editor-toast">{toast}</div>}
+      {confirmState === "close" && (
+        <ConfirmModal
+          title="未保存的更改"
+          message="笔记尚未保存，是否保存后再退出？"
+          confirmLabel="保存并退出"
+          cancelLabel="不保存并退出"
+          onConfirm={handleConfirmClose}
+          onCancel={handleCancelClose}
+          onDismiss={() => setConfirmState(null)}
+        />
+      )}
+      {infoState !== null && (
+        <InfoModal title="字数统计" message={infoState} onClose={() => setInfoState(null)} />
+      )}
       </main>
     </div>
   );
