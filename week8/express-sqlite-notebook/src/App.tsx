@@ -212,6 +212,7 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
   const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -243,7 +244,17 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
       await finishAuth("/api/auth/login", { username, password });
       return;
     }
+    if (password !== confirmPassword) {
+      setError("两次输入的密码不一致");
+      return;
+    }
     await finishAuth("/api/auth/register", { username, password, name });
+  }
+
+  function switchAuthMode(mode: AuthMode) {
+    setAuthMode(mode);
+    setError("");
+    setConfirmPassword("");
   }
 
   function logout() {
@@ -280,24 +291,18 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
           <div className="auth-tabs" role="tablist" aria-label="auth mode">
             <button
               className={authMode === "login" ? "selected" : ""}
-              onClick={() => {
-                setAuthMode("login");
-                setError("");
-              }}
+              onClick={() => switchAuthMode("login")}
             >
               登录
             </button>
             <button
               className={authMode === "register" ? "selected" : ""}
-              onClick={() => {
-                setAuthMode("register");
-                setError("");
-              }}
+              onClick={() => switchAuthMode("register")}
             >
               注册
             </button>
           </div>
-          <form className="auth-form" onSubmit={submitAuth}>
+          <form key={authMode} className="auth-form" onSubmit={submitAuth}>
             {authMode === "register" && (
               <input
                 value={name}
@@ -309,25 +314,42 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
             <input
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              placeholder="用户名：唯一，3-8 位数字或字母"
+              placeholder="用户名"
               autoComplete="username"
             />
             <input
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="密码：3-16 位数字/字母/@，不能纯数字"
+              placeholder="密码"
               type="password"
               autoComplete={authMode === "login" ? "current-password" : "new-password"}
             />
+            {authMode === "register" && (
+              <input
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="确认密码"
+                type="password"
+                autoComplete="new-password"
+              />
+            )}
             {error && <p className="auth-error">{error}</p>}
             <button className="guest-login-button" type="submit" disabled={busy}>
               <LogIn size={18} />
               {authMode === "login" ? "登录" : "注册并登录"}
             </button>
           </form>
-          <button className="guest-link-button" onClick={loginAsGuest} disabled={busy}>
-            访客一键登录演示数据
-          </button>
+          {authMode === "register" && (
+            <ul className="auth-requirements">
+              <li>用户名：3-8 位数字或字母，注册后不可修改</li>
+              <li>密码：3-16 位数字/字母/@，不能纯数字</li>
+            </ul>
+          )}
+          {authMode === "login" && (
+            <button className="guest-link-button" onClick={loginAsGuest} disabled={busy}>
+              访客一键登录演示数据
+            </button>
+          )}
         </div>
       )}
     </Modal>
@@ -570,9 +592,6 @@ function TodoView() {
         {todos.map((todo) =>
           editingId === todo.id ? (
             <article key={todo.id} className="todo-row editing">
-              <button className="check-button" onClick={() => saveEdit(todo.id)}>
-                <Check size={14} />
-              </button>
               <input
                 className="todo-edit-input"
                 value={editTitle}
@@ -598,9 +617,22 @@ function TodoView() {
                 value={editDueDate}
                 onChange={(event) => setEditDueDate(event.target.value)}
               />
-              <button className="icon-button" onClick={() => setEditingId(null)}>
-                <X size={16} />
-              </button>
+              <div className="todo-edit-actions">
+                <button
+                  className="icon-button todo-confirm-button"
+                  onClick={() => saveEdit(todo.id)}
+                  aria-label="保存"
+                >
+                  <Check size={16} />
+                </button>
+                <button
+                  className="icon-button"
+                  onClick={() => setEditingId(null)}
+                  aria-label="取消"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </article>
           ) : (
             <article key={todo.id} className={`todo-row ${todo.completed ? "done" : ""}`}>
@@ -608,11 +640,12 @@ function TodoView() {
                 {todo.completed && <Check size={14} />}
               </button>
               <strong onDoubleClick={() => startEdit(todo)}>{todo.title}</strong>
-              {todo.tagName && (
-                <span className="pill" style={{ backgroundColor: todo.tagColor || "#e5e7eb" }}>
-                  {todo.tagName}
-                </span>
-              )}
+              <span
+                className="pill-slot"
+                style={todo.tagName ? { backgroundColor: todo.tagColor || "#e5e7eb" } : undefined}
+              >
+                {todo.tagName || ""}
+              </span>
               <time>{formatDate(todo.dueDate)}</time>
               <div className="todo-actions">
                 <button className="icon-button" onClick={() => startEdit(todo)}>
