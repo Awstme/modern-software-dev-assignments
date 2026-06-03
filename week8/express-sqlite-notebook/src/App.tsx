@@ -70,12 +70,14 @@ type Store = {
   activeTagId: string;
   search: string;
   themeId: ThemeId;
+  pendingEditId: string | null;
   setCurrentUser: (user: User | null) => void;
   setMode: (mode: Mode) => void;
   setActiveTagId: (tagId: string) => void;
   setSearch: (search: string) => void;
   setThemeId: (themeId: ThemeId) => void;
   setSelectedNote: (note: Note | null) => void;
+  setPendingEditId: (id: string | null) => void;
   refresh: () => Promise<void>;
 };
 
@@ -129,6 +131,7 @@ const useNotebook = create<Store>((set, get) => ({
   activeTagId: "",
   search: "",
   themeId: readStoredTheme(),
+  pendingEditId: null,
   setCurrentUser: (currentUser) => {
     if (currentUser) localStorage.setItem("notebook-user", JSON.stringify(currentUser));
     else {
@@ -145,6 +148,7 @@ const useNotebook = create<Store>((set, get) => ({
     set({ themeId });
   },
   setSelectedNote: (selectedNote) => set({ selectedNote }),
+  setPendingEditId: (pendingEditId) => set({ pendingEditId }),
   refresh: async () => {
     const { search, activeTagId } = get();
     const params = new URLSearchParams();
@@ -546,11 +550,20 @@ function Header() {
 }
 
 function TodoView() {
-  const { todos, tags, refresh } = useNotebook();
+  const { todos, tags, refresh, pendingEditId, setPendingEditId } = useNotebook();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editTagId, setEditTagId] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
+
+  useEffect(() => {
+    if (!pendingEditId) return;
+    const todo = todos.find((t) => t.id === pendingEditId);
+    if (todo) {
+      startEdit(todo);
+      setPendingEditId(null);
+    }
+  }, [pendingEditId, todos, setPendingEditId]);
 
   async function updateTodo(todo: Todo, completed: boolean) {
     await api.request<Todo>(`/api/todos/${todo.id}`, {
@@ -898,14 +911,17 @@ export function App() {
 
   async function createCurrentItem() {
     if (mode === "todo") {
-      await api.request<Todo>("/api/todos", {
+      const todo = await api.request<Todo>("/api/todos", {
         method: "POST",
         body: JSON.stringify({
           title: "新的待办",
-          tagId: activeTagId || tags[0]?.id || null,
+          tagId: null,
         }),
       });
       await refresh();
+      const store = useNotebook.getState();
+      store.setActiveTagId("");
+      store.setPendingEditId(todo.id);
       return;
     }
 
