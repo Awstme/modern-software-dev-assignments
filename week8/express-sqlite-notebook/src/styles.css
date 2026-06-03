@@ -395,7 +395,7 @@ textarea:focus-visible {
 }
 
 .modal-panel {
-  width: min(440px, calc(100vw - 32px));
+  width: min(480px, calc(100vw - 32px));
   overflow: hidden;
   border: 1px solid rgba(219, 227, 238, 0.92);
   border-radius: 16px;
@@ -444,6 +444,12 @@ textarea:focus-visible {
 .profile-card .text-button {
   grid-column: 1 / -1;
   justify-self: start;
+}
+
+.profile-card > .auth-error,
+.profile-card > .guest-link-button {
+  grid-column: 1 / -1;
+  width: 100%;
 }
 
 .profile-avatar {
@@ -557,13 +563,14 @@ textarea:focus-visible {
 
 .profile-password-edit {
   grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 8px;
 }
 
 .profile-password-edit input {
-  height: 34px;
+  width: 100%;
+  min-width: 0;
+  height: 38px;
   border: 1px solid rgba(var(--accent-rgb), 0.4);
   border-radius: 8px;
   padding: 0 10px;
@@ -573,12 +580,14 @@ textarea:focus-visible {
 
 .profile-password-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .auth-panel {
   display: grid;
   gap: 12px;
+  min-width: 320px;
 }
 
 .auth-tabs {
@@ -639,10 +648,13 @@ textarea:focus-visible {
 }
 
 .auth-error {
-  margin: -2px 0 0;
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #fef2f2;
   color: var(--rose);
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .auth-requirements {
