@@ -589,6 +589,15 @@ function TodoView() {
   return (
     <section className="todo-panel">
       <div className="todo-list">
+        {todos.length > 0 && (
+          <div className="todo-header">
+            <span />
+            <span>TODO</span>
+            <span>标签</span>
+            <span>截止日期</span>
+            <span>操作</span>
+          </div>
+        )}
         {todos.map((todo) =>
           editingId === todo.id ? (
             <article key={todo.id} className="todo-row editing">

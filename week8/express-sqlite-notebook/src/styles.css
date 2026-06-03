@@ -852,6 +852,8 @@ textarea:focus-visible {
 }
 
 .todo-list {
+  --todo-columns: 26px minmax(180px, 1fr) 112px 118px 92px;
+  --todo-gap: 16px;
   display: grid;
   overflow: hidden;
   border: 1px solid rgba(219, 227, 238, 0.8);
@@ -861,11 +863,44 @@ textarea:focus-visible {
   margin-top: 22px;
 }
 
+.todo-header {
+  display: grid;
+  grid-template-columns: var(--todo-columns);
+  align-items: center;
+  gap: var(--todo-gap);
+  min-height: 42px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(226, 233, 243, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(247, 251, 253, 0.4);
+}
+
+.todo-header span {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.todo-header span:nth-child(4),
+.todo-header span:last-child {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.todo-header span:nth-child(3) {
+  justify-content: center;
+  text-align: center;
+}
+
 .todo-row {
   display: grid;
-  grid-template-columns: 26px minmax(120px, 1fr) 120px 120px auto;
+  grid-template-columns: var(--todo-columns);
   align-items: center;
-  gap: 16px;
+  gap: var(--todo-gap);
   min-height: 66px;
   border-bottom: 1px solid rgba(226, 233, 243, 0.9);
   padding: 0 16px;
@@ -876,7 +911,7 @@ textarea:focus-visible {
 
 .todo-row.editing {
   background: rgba(232, 240, 252, 0.5);
-  grid-template-columns: 26px minmax(120px, 1fr) 120px 120px auto;
+  grid-template-columns: var(--todo-columns);
 }
 
 .todo-row.editing .todo-edit-input {
@@ -908,9 +943,23 @@ textarea:focus-visible {
   text-decoration: line-through;
 }
 
+.todo-row strong {
+  min-width: 0;
+}
+
+.todo-row time {
+  justify-self: end;
+}
+
+.todo-row .pill-slot {
+  justify-self: center;
+}
+
 .todo-actions {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
+  justify-self: end;
   gap: 2px;
 }
 
@@ -1389,6 +1438,10 @@ time {
     grid-column: auto;
   }
 
+  .todo-header {
+    display: none;
+  }
+
   .todo-row {
     grid-template-columns: 26px 1fr auto;
     grid-template-areas:
@@ -1453,3 +1506,5 @@ time {
 
   .theme-grid {
     grid-template-columns: 1fr;
+  }
+}
