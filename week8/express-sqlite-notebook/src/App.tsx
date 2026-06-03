@@ -311,6 +311,8 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
   const [changingPassword, setChangingPassword] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [editingAvatar, setEditingAvatar] = useState(false);
+  const [newAvatarColor, setNewAvatarColor] = useState(currentUser?.avatarColor || "#dbeafe");
 
   async function loginAsGuest() {
     await finishAuth("/api/auth/guest");
@@ -329,6 +331,26 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
       onClose();
     } catch (authError) {
       setError(authError instanceof Error ? authError.message : "登录失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveAvatarColor() {
+    if (newAvatarColor === currentUser?.avatarColor) {
+      setEditingAvatar(false);
+      return;
+    }
+    setBusy(true);
+    try {
+      const user = await api.request<User>("/api/users/me", {
+        method: "PATCH",
+        body: JSON.stringify({ avatarColor: newAvatarColor }),
+      });
+      setCurrentUser(user);
+      setEditingAvatar(false);
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : "修改失败");
     } finally {
       setBusy(false);
     }
@@ -412,7 +434,12 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
     >
       {currentUser ? (
         <div className="profile-card">
-          <span className="profile-avatar" style={{ backgroundColor: currentUser.avatarColor }}>
+          <span
+            className="profile-avatar"
+            style={{ backgroundColor: editingAvatar ? newAvatarColor : currentUser.avatarColor }}
+            onClick={() => { setEditingAvatar(true); setNewAvatarColor(currentUser.avatarColor); }}
+            title="点击更换头像颜色"
+          >
             {(editingName ? newName : currentUser.name).slice(0, 1)}
           </span>
           <div>
@@ -449,6 +476,26 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
             )}
             <p>{currentUser.username ? `@${currentUser.username}` : ""}</p>
           </div>
+          {editingAvatar && (
+            <div className="avatar-color-grid">
+              {avatarColorChoices.map((c) => (
+                <button
+                  key={c}
+                  className={`avatar-color-swatch${newAvatarColor === c ? " active" : ""}`}
+                  style={{ backgroundColor: c }}
+                  onClick={() => setNewAvatarColor(c)}
+                />
+              ))}
+              <div className="avatar-color-actions">
+                <button className="icon-button todo-confirm-button" onClick={saveAvatarColor} disabled={busy}>
+                  <Check size={14} />
+                </button>
+                <button className="icon-button" onClick={() => setEditingAvatar(false)}>
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          )}
           {currentUser.username && (
             changingPassword ? (
               <div className="profile-password-edit">
@@ -590,6 +637,12 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
 const tagColorChoices = [
   "#dbeafe", "#dcfce7", "#fef3c7", "#f3e8ff",
   "#ffe4e6", "#e0f2fe", "#fce7f3", "#d1fae5",
+];
+
+const avatarColorChoices = [
+  "#dbeafe", "#dcfce7", "#fef3c7", "#f3e8ff",
+  "#ffe4e6", "#e0f2fe", "#fce7f3", "#d1fae5",
+  "#1f6bd8", "#197458", "#a86f17", "#c23f48",
 ];
 
 function NewTagModal({ onClose }: { onClose: () => void }) {

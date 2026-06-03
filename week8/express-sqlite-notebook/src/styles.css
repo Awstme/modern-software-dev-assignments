@@ -455,9 +455,64 @@ textarea:focus-visible {
   color: #1f2a3d;
   font-size: 22px;
   font-weight: 900;
+  cursor: pointer;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
     0 10px 28px rgba(30, 42, 64, 0.1);
+  transition: transform 160ms ease;
+}
+
+.profile-avatar:hover {
+  transform: scale(1.05);
+}
+
+.profile-avatar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.avatar-color-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, 28px);
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(219, 227, 238, 0.86);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.avatar-color-swatch {
+  width: 28px;
+  height: 28px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.avatar-color-swatch:hover {
+  transform: scale(1.1);
+}
+
+.avatar-color-swatch.active {
+  border-color: var(--ink);
+  transform: scale(1.1);
+}
+
+.avatar-color-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.avatar-color-actions .icon-button {
+  min-height: unset;
+  padding: 2px;
 }
 
 .profile-card strong {

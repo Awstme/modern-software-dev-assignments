@@ -317,11 +317,16 @@ app.post("/api/auth/login", (req, res) => {
 
 app.patch("/api/users/me", requireUser, (req, res) => {
   const name = optionalString(req.body.name);
+  const avatarColor = optionalString(req.body.avatarColor);
   const oldPassword = optionalString(req.body.oldPassword);
   const newPassword = optionalString(req.body.newPassword);
 
   if (name) {
     db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, req.userId);
+  }
+
+  if (avatarColor) {
+    db.prepare("UPDATE users SET avatar_color = ? WHERE id = ?").run(avatarColor, req.userId);
   }
 
   if (oldPassword && newPassword) {
@@ -334,7 +339,7 @@ app.patch("/api/users/me", requireUser, (req, res) => {
     db.prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?").run(hash, salt, req.userId);
   }
 
-  if (!name && !oldPassword && !newPassword) {
+  if (!name && !avatarColor && !oldPassword && !newPassword) {
     return res.status(400).json({ error: "缺少修改参数" });
   }
 
