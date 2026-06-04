@@ -8,6 +8,62 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(__dirname, "data");
+mkdirSync(dataDir, { recursive: true });
+
+function getSetting(userId, key) {
+  const row = db.prepare("SELECT value FROM settings WHERE user_id = ? AND key = ?").get(userId, key);
+  return row ? row.value : "";
+}
+
+function setSetting(userId, key, value) {
+  db.prepare("INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value").run(userId, key, value);
+}
+
+async function callAI(provider, apiKey, model, baseUrl, content) {
+  const prompt = `请用中文为以下笔记内容生成一段简洁的摘要，不超过150字：\n\n${content}`;
+
+  let resp;
+  try {
+    if (provider === "openai") {
+      const m = model || "mimo-v2.5";
+      const base = (baseUrl || "https://api.xiaomimimo.com/v1").replace(/\/+$/, "");
+      resp = await fetch(`${base}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: m, messages: [{ role: "user", content: prompt }], max_tokens: 300 }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        const msg = data.error?.message || data.message || data.msg || data.error || JSON.stringify(data);
+        throw new Error(`AI 接口错误：${msg}`);
+      }
+      return data.choices?.[0]?.message?.content?.trim() || "总结生成失败";
+    }
+
+    if (provider === "anthropic") {
+      const m = model || "claude-sonnet-4-20250514";
+      const base = (baseUrl || "https://api.anthropic.com/v1").replace(/\/+$/, "");
+      resp = await fetch(`${base}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({ model: m, max_tokens: 300, messages: [{ role: "user", content: prompt }] }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        const msg = data.error?.message || data.message || data.msg || data.error || JSON.stringify(data);
+        throw new Error(`AI 接口错误：${msg}`);
+      }
+      return data.content?.[0]?.text?.trim() || "总结生成失败";
+    }
+
+    throw new Error("不支持的 AI 服务商");
+  } catch (err) {
+    if (err.message.includes("fetch failed") || err.message.includes("ENOTFOUND") || err.message.includes("ECONNREFUSED")) {
+      throw new Error("无法连接到 AI 接口，请检查接口地址是否正确。");
+    }
+    throw err;
+  }
+}
 const dbPath = join(dataDir, "notebook.sqlite");
 const port = Number(process.env.PORT || 3001);
 
@@ -68,6 +124,14 @@ db.exec(`
     PRIMARY KEY (note_id, tag_id),
     FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    user_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, key),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 `);
 
@@ -349,6 +413,36 @@ app.patch("/api/users/me", requireUser, (req, res) => {
   res.json(publicUser(updated));
 });
 
+function maskSettings(rows) {
+  const result = {};
+  for (const r of rows) {
+    if (r.key === "ai_api_key" && r.value) {
+      result[r.key] = r.value.length > 4 ? "••••••••" + r.value.slice(-4) : "••••••••";
+    } else {
+      result[r.key] = r.value;
+    }
+  }
+  return result;
+}
+
+app.get("/api/settings", requireUser, (req, res) => {
+  const rows = db.prepare("SELECT key, value FROM settings WHERE user_id = ?").all(req.userId);
+  res.json(maskSettings(rows));
+});
+
+app.put("/api/settings", requireUser, (req, res) => {
+  const allowed = ["ai_provider", "ai_api_key", "ai_model", "ai_base_url"];
+  for (const key of allowed) {
+    if (key in req.body) {
+      const val = String(req.body[key] || "");
+      if (key === "ai_api_key" && !val) continue;
+      setSetting(req.userId, key, val);
+    }
+  }
+  const rows = db.prepare("SELECT key, value FROM settings WHERE user_id = ?").all(req.userId);
+  res.json(maskSettings(rows));
+});
+
 app.get("/api/tags", requireUser, (req, res) => {
   const rows = db
     .prepare("SELECT id, name, color FROM tags WHERE user_id = ? ORDER BY created_at, name")
@@ -508,24 +602,33 @@ app.delete("/api/notes/:id", requireUser, (req, res) => {
   res.status(204).end();
 });
 
-app.post("/api/notes/:id/summarize", requireUser, (req, res) => {
+app.post("/api/notes/:id/summarize", requireUser, async (req, res) => {
   const note = db.prepare("SELECT * FROM notes WHERE id = ? AND user_id = ?").get(req.params.id, req.userId);
   if (!note) return res.status(404).json({ error: "Note not found" });
 
-  const plain = note.content
-    .replace(/[#>*_`-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const summary = plain
-    ? `本文主要记录：${plain.slice(0, 120)}${plain.length > 120 ? "..." : ""}`
-    : "这篇笔记还没有足够内容生成总结。";
+  const provider = getSetting(req.userId, "ai_provider");
+  const apiKey = getSetting(req.userId, "ai_api_key");
+  const model = getSetting(req.userId, "ai_model");
+  const baseUrl = getSetting(req.userId, "ai_base_url");
 
-  db.prepare("UPDATE notes SET summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?").run(
-    summary,
-    req.params.id,
-    req.userId
-  );
-  res.json({ summary });
+  if (!provider || !apiKey) {
+    return res.status(400).json({ error: "请先在设置中配置 AI 服务。" });
+  }
+
+  const plain = note.content.replace(/[#>*_`\-]/g, " ").replace(/\s+/g, " ").trim();
+  if (!plain || plain.length < 10) {
+    return res.status(400).json({ error: "笔记内容太少，无法生成总结。" });
+  }
+
+  try {
+    const summary = await callAI(provider, apiKey, model, baseUrl, plain);
+    db.prepare("UPDATE notes SET summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?").run(
+      summary, req.params.id, req.userId
+    );
+    res.json({ summary });
+  } catch (err) {
+    res.status(502).json({ error: err.message || "AI 调用失败" });
+  }
 });
 
 app.use(express.static(join(__dirname, "..", "dist")));

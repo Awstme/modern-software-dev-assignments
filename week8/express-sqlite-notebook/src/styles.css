@@ -601,28 +601,41 @@ textarea:focus-visible {
   padding: 4px;
 }
 
+.auth-tabs::before {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 12px) / 2);
+  border-radius: 9px;
+  content: "";
+  background: var(--blue-soft);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.22);
+  transform: translateX(0);
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.auth-tabs.tab-right::before {
+  transform: translateX(calc(100% + 4px));
+}
+
 .auth-tabs button {
+  position: relative;
+  z-index: 1;
   min-height: 36px;
   border: 0;
   border-radius: 9px;
   background: transparent;
   color: var(--muted);
   font-weight: 900;
+  transition: color 160ms ease;
 }
 
 .auth-tabs button.selected {
-  background: var(--blue-soft);
   color: var(--blue);
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.22);
 }
 
-.auth-form {
-  display: grid;
-  gap: 10px;
-  animation: auth-slide-in 280ms ease both;
-}
-
-@keyframes auth-slide-in {
+@keyframes tab-content-in {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -631,6 +644,12 @@ textarea:focus-visible {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.auth-form {
+  display: grid;
+  gap: 10px;
+  animation: tab-content-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .auth-form input {
@@ -721,6 +740,7 @@ textarea:focus-visible {
 .setting-block {
   display: grid;
   gap: 14px;
+  animation: tab-content-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .setting-title {
@@ -729,6 +749,63 @@ textarea:focus-visible {
   gap: 9px;
   color: #1f2a3d;
   font-weight: 900;
+}
+
+.settings-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  border: 1px solid rgba(216, 225, 237, 0.92);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 4px;
+  margin-bottom: 14px;
+}
+
+.settings-tabs::before {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 12px) / 2);
+  border-radius: 9px;
+  content: "";
+  background: var(--blue-soft);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.22);
+  transform: translateX(0);
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-tabs.tab-right::before {
+  transform: translateX(calc(100% + 4px));
+}
+
+.settings-tabs button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 900;
+  transition: color 160ms ease;
+}
+
+.settings-tabs button.selected {
+  color: var(--blue);
+}
+
+.ai-config-box {
+  border: 1px solid rgba(216, 225, 237, 0.92);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 16px;
 }
 
 .theme-grid {
@@ -767,6 +844,86 @@ textarea:focus-visible {
   border-color: color-mix(in srgb, var(--blue) 50%, #ffffff);
   background: var(--blue-soft);
   transform: translateY(-1px);
+}
+
+.ai-config-form {
+  display: grid;
+  gap: 12px;
+}
+
+.ai-field {
+  display: grid;
+  gap: 4px;
+}
+
+.ai-field span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ai-field input,
+.ai-field select {
+  height: 36px;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 14px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.ai-field select {
+  cursor: pointer;
+}
+
+.ai-key-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ai-key-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-key-row .icon-button {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+}
+
+.ai-config-actions .text-button.primary {
+  background: var(--blue-soft);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  border-radius: 10px;
+  padding: 0 16px;
+  min-height: 38px;
+  color: var(--blue);
+  font-weight: 800;
+  transition: background 160ms ease;
+}
+
+.ai-config-actions .text-button.primary:hover {
+  background: rgba(var(--accent-rgb), 0.18);
+}
+
+.ai-config-actions .text-button.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-config-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.ai-config-msg {
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .tag-color-grid {
@@ -944,6 +1101,10 @@ textarea:focus-visible {
 
 .mode-switch .selected {
   color: var(--blue);
+}
+
+.tab-content {
+  animation: tab-content-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .search-box {

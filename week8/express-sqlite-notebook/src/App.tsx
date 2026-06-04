@@ -545,7 +545,7 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
         </div>
       ) : (
         <div className="auth-panel">
-          <div className="auth-tabs" role="tablist" aria-label="auth mode">
+          <div className={`auth-tabs${authMode === "register" ? " tab-right" : ""}`} role="tablist" aria-label="auth mode">
             <button
               className={authMode === "login" ? "selected" : ""}
               onClick={() => switchAuthMode("login")}
@@ -615,28 +615,121 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
 
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const { themeId, setThemeId } = useNotebook();
+  const [settingTab, setSettingTab] = useState<"theme" | "ai">("theme");
+  const [aiProvider, setAiProvider] = useState("openai");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [aiApiKeyPlaceholder, setAiApiKeyPlaceholder] = useState("");
+  const [aiModel, setAiModel] = useState("");
+  const [aiBaseUrl, setAiBaseUrl] = useState("");
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiMsg, setAiMsg] = useState("");
+
+  useEffect(() => {
+    api.request<Record<string, string>>("/api/settings").then((s) => {
+      setAiProvider(s.ai_provider || "openai");
+      setAiApiKeyPlaceholder(s.ai_api_key || "");
+      setAiApiKey("");
+      setAiModel(s.ai_model || "");
+      setAiBaseUrl(s.ai_base_url || "");
+    }).catch(() => {});
+  }, []);
+
+  async function saveAiSettings() {
+    setAiSaving(true);
+    setAiMsg("");
+    try {
+      const body: Record<string, string> = { ai_provider: aiProvider, ai_model: aiModel, ai_base_url: aiBaseUrl };
+      if (aiApiKey) body.ai_api_key = aiApiKey;
+      const result = await api.request<Record<string, string>>("/api/settings", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      setAiApiKey("");
+      if (result.ai_api_key) setAiApiKeyPlaceholder(result.ai_api_key);
+      setAiMsg("已保存");
+      setTimeout(() => setAiMsg(""), 2000);
+    } catch (err) {
+      setAiMsg(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setAiSaving(false);
+    }
+  }
 
   return (
-    <Modal title="设置" subtitle="选择适合当前工作状态的主题色。" onClose={onClose}>
-      <div className="setting-block">
-        <div className="setting-title">
-          <Palette size={18} />
-          <span>主题颜色</span>
-        </div>
-        <div className="theme-grid">
-          {themeChoices.map((theme) => (
-            <button
-              key={theme.id}
-              className={`theme-swatch ${themeId === theme.id ? "active" : ""}`}
-              onClick={() => setThemeId(theme.id)}
-              aria-label={`use ${theme.label} theme`}
-            >
-              <span style={{ backgroundColor: theme.color }} />
-              {theme.label}
-            </button>
-          ))}
-        </div>
+    <Modal title="设置" subtitle={settingTab === "theme" ? "选择适合当前工作状态的主题色。" : "配置 AI 服务用于笔记总结。"} onClose={onClose}>
+      <div className={`settings-tabs${settingTab === "ai" ? " tab-right" : ""}`} role="tablist">
+        <button className={settingTab === "theme" ? "selected" : ""} onClick={() => setSettingTab("theme")}>
+          <Palette size={16} />
+          主题
+        </button>
+        <button className={settingTab === "ai" ? "selected" : ""} onClick={() => setSettingTab("ai")}>
+          <Sparkles size={16} />
+          AI
+        </button>
       </div>
+      {settingTab === "theme" ? (
+        <div className="setting-block">
+          <div className="theme-grid">
+            {themeChoices.map((theme) => (
+              <button
+                key={theme.id}
+                className={`theme-swatch ${themeId === theme.id ? "active" : ""}`}
+                onClick={() => setThemeId(theme.id)}
+                aria-label={`use ${theme.label} theme`}
+              >
+                <span style={{ backgroundColor: theme.color }} />
+                {theme.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="setting-block ai-config-box">
+          <div className="ai-config-form">
+            <label className="ai-field">
+              <span>API 类型</span>
+              <select value={aiProvider} onChange={(e) => setAiProvider(e.target.value)}>
+                <option value="openai">OpenAI Chat Completions</option>
+                <option value="anthropic">Anthropic</option>
+              </select>
+            </label>
+            <label className="ai-field">
+              <span>接口地址</span>
+              <input
+                value={aiBaseUrl}
+                onChange={(e) => setAiBaseUrl(e.target.value)}
+                placeholder={aiProvider === "anthropic" ? "https://api.anthropic.com/v1" : "https://api.xiaomimimo.com/v1"}
+                autoComplete="off"
+              />
+            </label>
+            <label className="ai-field">
+              <span>API Key</span>
+              <input
+                type="password"
+                value={aiApiKey}
+                onChange={(e) => setAiApiKey(e.target.value)}
+                placeholder={aiApiKeyPlaceholder ? "已设置，留空则保留原值" : "输入 API Key"}
+                autoComplete="off"
+              />
+            </label>
+            <label className="ai-field">
+              <span>模型 ID</span>
+              <input
+                value={aiModel}
+                onChange={(e) => setAiModel(e.target.value)}
+                placeholder={aiProvider === "anthropic" ? "claude-sonnet-4-20250514" : "mimo-v2.5"}
+                autoComplete="off"
+              />
+            </label>
+            <div className="ai-config-actions">
+              <button className="text-button primary" onClick={saveAiSettings} disabled={aiSaving}>
+                {aiSaving ? "保存中…" : "保存 AI 配置"}
+              </button>
+              {aiMsg && <span className="ai-config-msg">{aiMsg}</span>}
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }
@@ -1124,8 +1217,11 @@ function Editor() {
     }
   }
 
+  const [summarizing, setSummarizing] = useState(false);
+
   async function summarize() {
     setError("");
+    setSummarizing(true);
     try {
       const payload = await api.request<{ summary: string }>(`/api/notes/${selectedNote!.id}/summarize`, {
         method: "POST",
@@ -1134,6 +1230,8 @@ function Editor() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "总结失败");
+    } finally {
+      setSummarizing(false);
     }
   }
 
@@ -1270,11 +1368,11 @@ function Editor() {
         )}
       </div>
       <section className="summary-box">
-        <button onClick={summarize}>
+        <button onClick={summarize} disabled={summarizing}>
           <Sparkles size={16} />
-          AI 总结
+          {summarizing ? "AI 总结中…" : "AI 总结"}
         </button>
-        <p>{summary || "点击生成这篇笔记的摘要。"}</p>
+        {summary && <p>{summary}</p>}
       </section>
       {markdownPreview ? (
         <div
@@ -1373,7 +1471,7 @@ export function App() {
           <Plus size={22} />
         </button>
         <Header />
-        {body}
+        <div key={mode} className="tab-content">{body}</div>
       </section>
       {activeModal === "profile" && <ProfileModal onClose={() => setActiveModal(null)} />}
       {activeModal === "settings" && <SettingsModal onClose={() => setActiveModal(null)} />}
