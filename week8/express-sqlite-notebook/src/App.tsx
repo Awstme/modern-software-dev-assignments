@@ -1440,9 +1440,10 @@ export function App() {
           tagId: null,
         }),
       });
-      await refresh();
       const store = useNotebook.getState();
       store.setActiveTagId("");
+      store.setSearch("");
+      await refresh();
       store.setPendingEditId(todo.id);
       return;
     }
