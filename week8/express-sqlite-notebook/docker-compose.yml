@@ -1,0 +1,14 @@
+services:
+  notebook:
+    build: .
+    container_name: week8-notebook
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      NODE_ENV: production
+    volumes:
+      - ./data:/app/backend/data
+    restart: unless-stopped
+
+

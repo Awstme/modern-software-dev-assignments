@@ -36,6 +36,36 @@ npm run dev
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:3001`
 
+## Docker 部署
+
+本项目提供 `Dockerfile` 和 `docker-compose.yml`。生产环境中 Express 会同时提供 API 和 `dist/` 前端静态文件，默认只需要暴露 `3001` 端口。
+
+```bash
+cd week8/express-sqlite-notebook
+docker compose up -d --build
+```
+
+访问地址：
+
+- `http://服务器IP:3001`
+
+SQLite 数据通过 Docker volume 持久化到 `notebook-data`，容器重建不会丢失数据。
+
+常用命令：
+
+```bash
+docker compose logs -f
+docker compose restart
+docker compose down
+```
+
+如果要删除数据库并重新生成演示数据：
+
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
 ## API
 
 - `GET /api/tags`
