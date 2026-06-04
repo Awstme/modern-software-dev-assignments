@@ -381,7 +381,7 @@ app.get("/api/todos", requireUser, (req, res) => {
       WHERE todos.user_id = ?
         AND todos.title LIKE ?
         AND (? = '' OR todos.tag_id = ?)
-      ORDER BY todos.completed, COALESCE(todos.due_date, '9999-12-31'), todos.created_at DESC
+      ORDER BY todos.completed, todos.due_date IS NOT NULL, todos.due_date, todos.created_at DESC
     `)
     .all(req.userId, search, tagId, tagId);
   res.json(rows.map(todoRow));
