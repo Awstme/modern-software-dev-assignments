@@ -823,19 +823,24 @@ function TemplateModal({ onClose, onSelect }: { onClose: () => void; onSelect: (
 function Sidebar({ onOpenModal }: { onOpenModal: (modal: Exclude<ModalMode, null>) => void }) {
   const { tags, activeTagId, setActiveTagId, currentUser, refresh } = useNotebook();
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleteError, setDeleteError] = useState("");
 
-  async function deleteTag(tagId: string, tagName: string) {
-    if (!confirm(`确定删除标签「${tagName}」吗？关联的待办将取消标签，笔记将移除该标签。`)) return;
+  async function deleteTag() {
+    if (!confirmDelete) return;
+    setDeleteError("");
     try {
-      await api.request(`/api/tags/${tagId}`, { method: "DELETE" });
-      if (activeTagId === tagId) setActiveTagId("");
+      await api.request(`/api/tags/${confirmDelete.id}`, { method: "DELETE" });
+      if (activeTagId === confirmDelete.id) setActiveTagId("");
+      setConfirmDelete(null);
       await refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "删除失败");
+      setDeleteError(err instanceof Error ? err.message : "删除失败");
     }
   }
 
   return (
+    <>
     <aside className="sidebar">
       <button className="avatar-button" aria-label="user profile" onClick={() => onOpenModal("profile")}>
         {currentUser ? (
@@ -869,7 +874,7 @@ function Sidebar({ onOpenModal }: { onOpenModal: (modal: Exclude<ModalMode, null
                 className="tag-delete-btn"
                 onClick={(event) => {
                   event.stopPropagation();
-                  deleteTag(tag.id, tag.name);
+                  setConfirmDelete({ id: tag.id, name: tag.name });
                 }}
                 aria-label={`删除 ${tag.name}`}
               >
@@ -896,6 +901,17 @@ function Sidebar({ onOpenModal }: { onOpenModal: (modal: Exclude<ModalMode, null
         <Settings size={18} />
       </button>
     </aside>
+    {confirmDelete && (
+      <ConfirmModal
+        title="删除标签"
+        message={`确定删除标签「${confirmDelete.name}」吗？关联的待办将取消标签，笔记将移除该标签。`}
+        confirmLabel="删除"
+        cancelLabel="取消"
+        onConfirm={deleteTag}
+        onCancel={() => { setConfirmDelete(null); setDeleteError(""); }}
+      />
+    )}
+    </>
   );
 }
 
@@ -1187,17 +1203,6 @@ function Editor() {
   function handleCancelClose() {
     setConfirmState(null);
     setSelectedNote(null);
-  }
-
-  async function deleteTag(tagId: string, tagName: string) {
-    if (!confirm(`确定删除标签「${tagName}」吗？关联的待办将取消标签，笔记将移除该标签。`)) return;
-    try {
-      await api.request(`/api/tags/${tagId}`, { method: "DELETE" });
-      setTagIds((current) => current.filter((id) => id !== tagId));
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "删除失败");
-    }
   }
 
   async function quickCreateTag() {

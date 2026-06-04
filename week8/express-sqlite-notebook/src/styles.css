@@ -1374,15 +1374,18 @@ textarea:focus-visible {
 }
 
 .check-button {
-  display: grid;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 22px;
   height: 22px;
-  place-items: center;
   border: 2px solid #c5cdd9;
   border-radius: 50%;
   background: #fff;
   color: transparent;
   cursor: pointer;
+  line-height: 0;
+  padding: 0;
   transition:
     background 200ms ease,
     border-color 200ms ease,
