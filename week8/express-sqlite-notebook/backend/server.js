@@ -236,8 +236,11 @@ function authError(message, status) {
 
 function normalizeUsername(value) {
   const username = requiredString(value, "username").toLowerCase();
-  if (!/^[a-z0-9]{3,8}$/.test(username)) {
-    authError("用户名需唯一，且为 3-8 位数字或字母", 400);
+  if (!/^[a-z0-9]+$/.test(username)) {
+    authError("用户名只能包含数字或字母", 400);
+  }
+  if (username.length < 3 || username.length > 8) {
+    authError("用户名长度需为 3-8 位", 400);
   }
   return username;
 }
