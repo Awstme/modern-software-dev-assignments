@@ -3,6 +3,7 @@ import {
   Check,
   ClipboardCopy,
   Download,
+  Eye,
   FileText,
   LogIn,
   LogOut,
@@ -18,6 +19,7 @@ import {
   UserCircle,
   X,
 } from "lucide-react";
+import { marked } from "marked";
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { create } from "zustand";
@@ -1025,6 +1027,7 @@ function Editor() {
   const [infoState, setInfoState] = useState<string | null>(null);
   const [showNewTag, setShowNewTag] = useState(false);
   const [quickTagName, setQuickTagName] = useState("");
+  const [markdownPreview, setMarkdownPreview] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1165,10 +1168,12 @@ function Editor() {
 
   function copyContent() {
     navigator.clipboard.writeText(content).then(() => {
-      alert("内容已复制到剪贴板");
+      setToast("已复制到剪贴板");
+      setTimeout(() => setToast(""), 2000);
       setShowMoreMenu(false);
     }).catch(() => {
-      alert("复制失败");
+      setToast("复制失败");
+      setTimeout(() => setToast(""), 2000);
     });
   }
 
@@ -1184,6 +1189,14 @@ function Editor() {
           <Save size={16} />
           {saving ? "保存中…" : isDirty ? "保存" : "已保存"}
         </button>
+        <button
+          className={`icon-button${markdownPreview ? " active" : ""}`}
+          onClick={() => setMarkdownPreview(!markdownPreview)}
+          aria-label={markdownPreview ? "编辑模式" : "预览模式"}
+          title={markdownPreview ? "编辑模式" : "Markdown 预览"}
+        >
+          {markdownPreview ? <Pencil size={18} /> : <Eye size={18} />}
+        </button>
         <button className="icon-button danger" onClick={deleteNote}>
           <Trash2 size={18} />
         </button>
@@ -1197,13 +1210,13 @@ function Editor() {
                 <FileText size={16} />
                 字数统计
               </button>
-              <button onClick={exportMarkdown}>
-                <Download size={16} />
-                导出 Markdown
-              </button>
               <button onClick={copyContent}>
                 <ClipboardCopy size={16} />
                 复制内容
+              </button>
+              <button onClick={exportMarkdown}>
+                <Download size={16} />
+                导出 Markdown
               </button>
             </div>
           )}
@@ -1263,12 +1276,19 @@ function Editor() {
         </button>
         <p>{summary || "点击生成这篇笔记的摘要。"}</p>
       </section>
-      <textarea
-        className="editor"
-        value={content}
-        onChange={(event) => setContent(event.target.value)}
-        spellCheck={false}
-      />
+      {markdownPreview ? (
+        <div
+          className="editor markdown-preview"
+          dangerouslySetInnerHTML={{ __html: marked.parse(content) as string }}
+        />
+      ) : (
+        <textarea
+          className="editor"
+          value={content}
+          onChange={(event) => setContent(event.target.value)}
+          spellCheck={false}
+        />
+      )}
       {toast && <div className="editor-toast">{toast}</div>}
       {confirmState === "close" && (
         <ConfirmModal
