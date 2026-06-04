@@ -1375,13 +1375,31 @@ textarea:focus-visible {
 
 .check-button {
   display: grid;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   place-items: center;
-  border: 1px solid #bfc9d8;
-  border-radius: 7px;
+  border: 2px solid #c5cdd9;
+  border-radius: 50%;
   background: #fff;
-  color: var(--blue);
+  color: transparent;
+  cursor: pointer;
+  transition:
+    background 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease,
+    transform 120ms ease;
+}
+
+.check-button:hover {
+  border-color: var(--blue);
+  transform: scale(1.1);
+}
+
+.check-button.completed {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  transform: scale(1);
 }
 
 .pill {

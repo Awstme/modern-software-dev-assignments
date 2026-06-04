@@ -1043,8 +1043,8 @@ function TodoView() {
             </article>
           ) : (
             <article key={todo.id} className={`todo-row ${todo.completed ? "done" : ""}`}>
-              <button className="check-button" onClick={() => updateTodo(todo, !todo.completed)}>
-                {todo.completed && <Check size={14} />}
+              <button className={`check-button${todo.completed ? " completed" : ""}`} onClick={() => updateTodo(todo, !todo.completed)}>
+                <Check size={13} strokeWidth={3} />
               </button>
               <strong onDoubleClick={() => startEdit(todo)}>{todo.title}</strong>
               <span
