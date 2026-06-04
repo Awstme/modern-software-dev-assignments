@@ -226,14 +226,16 @@ function Modal({
   subtitle,
   children,
   onClose,
+  closable = true,
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
   onClose: () => void;
+  closable?: boolean;
 }) {
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="modal-backdrop" role="presentation" onMouseDown={closable ? onClose : undefined}>
       <section
         className="modal-panel"
         role="dialog"
@@ -246,9 +248,11 @@ function Modal({
             <h2>{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="close modal">
-            <X size={18} />
-          </button>
+          {closable && (
+            <button className="icon-button" onClick={onClose} aria-label="close modal">
+              <X size={18} />
+            </button>
+          )}
         </header>
         {children}
       </section>
@@ -431,6 +435,7 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
       title={currentUser ? "用户中心" : authMode === "login" ? "登录账户" : "注册账户"}
       subtitle={currentUser ? "当前使用本地会话。" : "可注册新用户，也可一键进入访客演示数据。"}
       onClose={onClose}
+      closable={!!currentUser}
     >
       {currentUser ? (
         <div className="profile-card">
