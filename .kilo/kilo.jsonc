@@ -1,0 +1,20 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+
+  "mcp": {
+    "github-api-mcp": {
+      "type": "local",
+      "command": [
+        "/Users/awstme/Documents/modern-software-dev-assignments/.venv/bin/python",
+        "/Users/awstme/Documents/modern-software-dev-assignments/week3/GitHub MCP/main.py"
+      ],
+      "environment": {
+        "LOG_LEVEL": "INFO",
+        "GITHUB_TIMEOUT_SECONDS": "10",
+        "GITHUB_MAX_RETRIES": "2"
+      },
+      "enabled": true,
+      "timeout": 15000
+    }
+  }
+}
