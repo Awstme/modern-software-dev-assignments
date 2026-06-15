@@ -15,7 +15,7 @@ router = APIRouter(prefix="/action-items", tags=["action_items"])
 def list_items(
     db: Session = Depends(get_db),
     completed: Optional[bool] = None,
-    skip: int = 0,
+    skip: int = Query(0, ge=0),
     limit: int = Query(50, le=200),
     sort: str = Query("-created_at"),
 ) -> list[ActionItemRead]:
@@ -68,5 +68,4 @@ def patch_item(item_id: int, payload: ActionItemPatch, db: Session = Depends(get
     db.flush()
     db.refresh(item)
     return ActionItemRead.model_validate(item)
-
 
