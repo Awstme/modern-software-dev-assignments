@@ -7,7 +7,18 @@ load_dotenv()
 NUM_RUNS_TIMES = 5
 
 # TODO: Fill this in!
-YOUR_SYSTEM_PROMPT = ""
+YOUR_SYSTEM_PROMPT = """You reverse a word by writing its characters in reverse order, one by one. Preserve the exact case of every character. Never split the word into parts. Never change any character.
+
+Examples:
+Input: hello → olleh
+Input: World → dlroW
+Input: Python → nohtyP
+Input: ABC → CBA
+Input: test123 → 321tset
+Input: httpBin → niBptth
+Input: httpstatus → sutatsptth
+
+Output ONLY the reversed word. No extra text."""
 
 USER_PROMPT = """
 Reverse the order of letters in the following word. Only output the reversed word, no other text:

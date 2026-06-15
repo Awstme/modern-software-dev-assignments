@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import os
-import re
-from typing import List
 import json
-from typing import Any
-from ollama import chat
-from dotenv import load_dotenv
+import re
 
-load_dotenv()
+from ollama import chat
+
+from ..config import settings
 
 BULLET_PREFIX_PATTERN = re.compile(r"^\s*([-*•]|\d+\.)\s+")
 KEYWORD_PREFIXES = (
@@ -16,6 +13,29 @@ KEYWORD_PREFIXES = (
     "action:",
     "next:",
 )
+
+_ACTION_ITEM_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action_items": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+    },
+    "required": ["action_items"],
+}
+
+
+def _deduplicate(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for item in items:
+        lowered = item.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        unique.append(item)
+    return unique
 
 
 def _is_action_line(line: str) -> bool:
@@ -31,47 +51,11 @@ def _is_action_line(line: str) -> bool:
     return False
 
 
-def extract_action_items(text: str) -> List[str]:
-    lines = text.splitlines()
-    extracted: List[str] = []
-    for raw_line in lines:
-        line = raw_line.strip()
-        if not line:
-            continue
-        if _is_action_line(line):
-            cleaned = BULLET_PREFIX_PATTERN.sub("", line)
-            cleaned = cleaned.strip()
-            # Trim common checkbox markers
-            cleaned = cleaned.removeprefix("[ ]").strip()
-            cleaned = cleaned.removeprefix("[todo]").strip()
-            extracted.append(cleaned)
-    # Fallback: if nothing matched, heuristically split into sentences and pick imperative-like ones
-    if not extracted:
-        sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-        for sentence in sentences:
-            s = sentence.strip()
-            if not s:
-                continue
-            if _looks_imperative(s):
-                extracted.append(s)
-    # Deduplicate while preserving order
-    seen: set[str] = set()
-    unique: List[str] = []
-    for item in extracted:
-        lowered = item.lower()
-        if lowered in seen:
-            continue
-        seen.add(lowered)
-        unique.append(item)
-    return unique
-
-
 def _looks_imperative(sentence: str) -> bool:
     words = re.findall(r"[A-Za-z']+", sentence)
     if not words:
         return False
     first = words[0]
-    # Crude heuristic: treat these as imperative starters
     imperative_starters = {
         "add",
         "create",
@@ -87,3 +71,59 @@ def _looks_imperative(sentence: str) -> bool:
         "investigate",
     }
     return first.lower() in imperative_starters
+
+
+def extract_action_items(text: str) -> list[str]:
+    lines = text.splitlines()
+    extracted: list[str] = []
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+        if _is_action_line(line):
+            cleaned = BULLET_PREFIX_PATTERN.sub("", line)
+            cleaned = cleaned.strip()
+            cleaned = cleaned.removeprefix("[ ]").strip()
+            cleaned = cleaned.removeprefix("[todo]").strip()
+            extracted.append(cleaned)
+    if not extracted:
+        sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+        for sentence in sentences:
+            s = sentence.strip()
+            if not s:
+                continue
+            if _looks_imperative(s):
+                extracted.append(s)
+    return _deduplicate(extracted)
+
+
+def extract_action_items_llm(text: str) -> list[str]:
+    text = text.strip()
+    if not text:
+        return []
+
+    resp = chat(
+        model=settings.llm_model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a helpful assistant that extracts action items or todos from text. "
+                    "Return the action items as a JSON array of strings. "
+                    "Only include items that are clearly tasks, action items, or todos. "
+                    "Ignore narrative text that is not an action item."
+                ),
+            },
+            {"role": "user", "content": text},
+        ],
+        format=_ACTION_ITEM_SCHEMA,
+        options={"temperature": 0},
+    )
+
+    try:
+        body = json.loads(resp.message.content)
+        items: list[str] = body.get("action_items", [])
+    except (json.JSONDecodeError, KeyError, TypeError):
+        items = []
+
+    return _deduplicate(items)

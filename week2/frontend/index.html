@@ -7,37 +7,57 @@
     <style>
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; margin: 2rem auto; max-width: 800px; padding: 0 1rem; }
       h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.2rem; margin-top: 2rem; }
       textarea { width: 100%; min-height: 160px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace; }
-      button { padding: 0.5rem 1rem; }
+      button { padding: 0.5rem 1rem; cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
       .items { margin-top: 1rem; }
       .item { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
       .muted { color: #6b7280; font-size: 0.875rem; }
-      .row { display: flex; gap: 0.5rem; align-items: center; }
+      .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+      .notes-list { margin-top: 1rem; }
+      .note-card { border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 0.5rem; }
+      .note-card .note-id { font-weight: 600; color: #6366f1; }
+      .note-card .note-date { color: #9ca3af; font-size: 0.8rem; margin-left: 0.5rem; }
+      .note-card .note-content { margin-top: 0.25rem; white-space: pre-wrap; }
+      .error { color: #ef4444; }
     </style>
   </head>
   <body>
     <h1>Action Item Extractor</h1>
-    <p class="muted">Paste notes and extract actionable items. Minimal raw HTML frontend.</p>
+    <p class="muted">Paste notes and extract actionable items.</p>
 
     <label for="text">Notes</label>
     <textarea id="text" placeholder="Paste notes here...&#10;e.g.&#10;- [ ] Set up database&#10;- Implement extract endpoint"></textarea>
     <div class="row">
       <label class="row"><input id="save_note" type="checkbox" checked /> Save as note</label>
       <button id="extract">Extract</button>
+      <button id="extract-llm">Extract LLM</button>
     </div>
 
     <div class="items" id="items"></div>
 
+    <h2>Saved Notes</h2>
+    <div class="row">
+      <button id="list-notes">List Notes</button>
+    </div>
+    <div class="notes-list" id="notes-list"></div>
+
     <script>
       const $ = (sel) => document.querySelector(sel);
       const itemsEl = $('#items');
-      const btn = $('#extract');
-      btn.addEventListener('click', async () => {
+      const notesEl = $('#notes-list');
+
+      function setLoading(btn, loading) {
+        btn.disabled = loading;
+      }
+
+      async function doExtract(endpoint) {
         const text = $('#text').value;
         const save = $('#save_note').checked;
         itemsEl.textContent = 'Extracting...';
         try {
-          const res = await fetch('/action-items/extract', {
+          const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text, save_note: save }),
@@ -63,12 +83,35 @@
           });
         } catch (err) {
           console.error(err);
-          itemsEl.textContent = 'Error extracting items';
+          itemsEl.innerHTML = '<p class="error">Error extracting items.</p>';
+        }
+      }
+
+      $('#extract').addEventListener('click', () => doExtract('/action-items/extract'));
+      $('#extract-llm').addEventListener('click', () => doExtract('/action-items/extract-llm'));
+
+      $('#list-notes').addEventListener('click', async () => {
+        notesEl.textContent = 'Loading...';
+        try {
+          const res = await fetch('/notes');
+          if (!res.ok) throw new Error('Request failed');
+          const data = await res.json();
+          if (!data || data.length === 0) {
+            notesEl.innerHTML = '<p class="muted">No notes saved yet.</p>';
+            return;
+          }
+          notesEl.innerHTML = data.map(n => `
+            <div class="note-card">
+              <span class="note-id">#${n.id}</span>
+              <span class="note-date">${n.created_at}</span>
+              <div class="note-content">${n.content}</div>
+            </div>
+          `).join('');
+        } catch (err) {
+          console.error(err);
+          notesEl.innerHTML = '<p class="error">Error loading notes.</p>';
         }
       });
-
     </script>
   </body>
-  </html>
-
-
+</html>
